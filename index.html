@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PRD Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #ffffff;
+      --surface: #fafafa;
+      --border: #e5e5e5;
+      --border-focus: #a3a3a3;
+      --text: #0a0a0a;
+      --text-muted: #737373;
+      --text-light: #a3a3a3;
+      --accent: #5b5bd6;
+      --accent-hover: #4c4cbf;
+      --accent-light: #ededfc;
+      --danger: #dc2626;
+      --danger-light: #fef2f2;
+      --success: #16a34a;
+      --radius: 8px;
+      --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,.07), 0 2px 4px -1px rgba(0,0,0,.04);
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* ── Layout ── */
+    .app {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    /* ── Header ── */
+    header {
+      margin-bottom: 40px;
+    }
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 20px;
+      text-decoration: none;
+      color: var(--text);
+    }
+    .logo-icon {
+      width: 28px; height: 28px;
+      background: var(--accent);
+      border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .logo-icon svg { width: 16px; height: 16px; fill: #fff; }
+    .logo-text { font-size: 15px; font-weight: 600; letter-spacing: -.3px; }
+    h1 { font-size: 24px; font-weight: 600; letter-spacing: -.5px; margin-bottom: 6px; }
+    .subtitle { color: var(--text-muted); font-size: 14px; }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+      box-shadow: var(--shadow);
+      margin-bottom: 20px;
+    }
+
+    /* ── API key banner ── */
+    .api-banner {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      margin-bottom: 24px;
+      transition: border-color .15s;
+    }
+    .api-banner.has-key { border-color: #bbf7d0; background: #f0fdf4; }
+    .api-banner-icon { flex-shrink: 0; }
+    .api-banner-body { flex: 1; min-width: 0; }
+    .api-banner-label { font-size: 12px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+    .api-banner-input {
+      width: 100%;
+      background: transparent;
+      border: none;
+      outline: none;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      color: var(--text);
+      font-feature-settings: "tnum";
+      letter-spacing: .3px;
+    }
+    .api-banner-input::placeholder { color: var(--text-light); }
+    .api-clear {
+      background: none; border: none; cursor: pointer;
+      color: var(--text-light); padding: 2px;
+      border-radius: 4px; transition: color .15s;
+      display: none;
+    }
+    .api-banner.has-key .api-clear { display: flex; }
+    .api-clear:hover { color: var(--danger); }
+
+    /* ── Form ── */
+    .form-grid { display: grid; gap: 18px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    @media (max-width: 540px) { .form-row { grid-template-columns: 1fr; } }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+
+    input[type="text"], textarea, select {
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      color: var(--text);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      transition: border-color .15s, box-shadow .15s;
+      outline: none;
+      width: 100%;
+      resize: vertical;
+    }
+    input[type="text"]:focus, textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(91,91,214,.1);
+    }
+    input[type="text"]::placeholder, textarea::placeholder { color: var(--text-light); }
+    textarea { min-height: 90px; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px; font-weight: 500;
+      padding: 10px 18px;
+      border-radius: var(--radius);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: background .15s, border-color .15s, opacity .15s;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: var(--accent); color: #fff;
+      border-color: var(--accent);
+      box-shadow: 0 1px 2px rgba(91,91,214,.3);
+    }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .btn-primary:disabled { opacity: .55; cursor: not-allowed; }
+    .btn-ghost {
+      background: transparent; color: var(--text-muted);
+      border-color: var(--border);
+    }
+    .btn-ghost:hover { background: var(--surface); color: var(--text); border-color: var(--border-focus); }
+
+    .form-actions {
+      display: flex; justify-content: flex-end;
+      padding-top: 4px;
+    }
+    .btn-generate { width: 100%; justify-content: center; margin-top: 4px; }
+
+    /* ── Spinner ── */
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Error ── */
+    .error-box {
+      display: none;
+      padding: 12px 14px;
+      background: var(--danger-light);
+      border: 1px solid #fecaca;
+      border-radius: var(--radius);
+      color: var(--danger);
+      font-size: 13px;
+      margin-top: 12px;
+      gap: 8px;
+      align-items: flex-start;
+    }
+    .error-box.visible { display: flex; }
+    .error-box svg { flex-shrink: 0; margin-top: 1px; }
+
+    /* ── Output ── */
+    #output-section { display: none; }
+    #output-section.visible { display: block; }
+
+    .output-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .output-title {
+      font-size: 13px; font-weight: 600;
+      color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px;
+    }
+    .copy-feedback { font-size: 12px; color: var(--success); opacity: 0; transition: opacity .3s; }
+    .copy-feedback.show { opacity: 1; }
+
+    /* PRD content */
+    .prd-body {
+      font-size: 14px;
+      line-height: 1.75;
+      color: var(--text);
+    }
+    .prd-body h2 {
+      font-size: 16px; font-weight: 600; letter-spacing: -.3px;
+      margin: 28px 0 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+    .prd-body h2:first-child { margin-top: 0; }
+    .prd-body h3 {
+      font-size: 13px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .5px;
+      color: var(--text-muted);
+      margin: 18px 0 6px;
+    }
+    .prd-body p { margin-bottom: 10px; }
+    .prd-body ul, .prd-body ol {
+      padding-left: 20px;
+      margin-bottom: 10px;
+    }
+    .prd-body li { margin-bottom: 4px; }
+    .prd-body strong { font-weight: 600; }
+    .prd-body code {
+      background: var(--accent-light);
+      color: var(--accent);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: 'Menlo', 'Consolas', monospace;
+    }
+    .prd-body hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 20px 0;
+    }
+
+    /* Section chips */
+    .section-tag {
+      display: inline-block;
+      background: var(--accent-light);
+      color: var(--accent);
+      font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .5px;
+      padding: 2px 8px; border-radius: 20px;
+      margin-bottom: 8px;
+    }
+
+    /* ── Divider ── */
+    .divider {
+      height: 1px; background: var(--border);
+      margin: 28px 0;
+    }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      color: var(--text-light);
+      font-size: 12px;
+      margin-top: 48px;
+    }
+
+    /* ── Streaming cursor ── */
+    .cursor {
+      display: inline-block;
+      width: 2px; height: 14px;
+      background: var(--accent);
+      border-radius: 1px;
+      animation: blink .8s ease infinite;
+      vertical-align: text-bottom;
+      margin-left: 2px;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <a class="logo" href="#">
+      <div class="logo-icon">
+        <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+          <path d="M2 2h5v5H2V2zm7 0h5v5H9V2zM2 9h5v5H2V9zm7 3h2v-2h2v2h-2v2H9v-2zm2-3h2v2h-2v-2z"/>
+        </svg>
+      </div>
+      <span class="logo-text">PRD Assistant</span>
+    </a>
+    <h1>Generate a PRD in seconds</h1>
+    <p class="subtitle">Describe your feature and get a structured Product Requirements Document.</p>
+  </header>
+
+  <!-- API Key -->
+  <div class="api-banner" id="apiBanner">
+    <div class="api-banner-icon">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M11 5V4a3 3 0 0 0-6 0v1H3.5A1.5 1.5 0 0 0 2 6.5v7A1.5 1.5 0 0 0 3.5 15h9a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 12.5 5H11zm-5 0V4a2 2 0 1 1 4 0v1H6zm2 4a1 1 0 0 1 1 1v1.5a1 1 0 0 1-2 0V10a1 1 0 0 1 1-1z" fill="currentColor" style="color:var(--text-muted)"/>
+      </svg>
+    </div>
+    <div class="api-banner-body">
+      <div class="api-banner-label">Anthropic API Key</div>
+      <input
+        type="password"
+        class="api-banner-input"
+        id="apiKeyInput"
+        placeholder="sk-ant-api03-…"
+        autocomplete="off"
+        spellcheck="false"
+      />
+    </div>
+    <button class="api-clear" id="apiClear" title="Clear key" aria-label="Clear API key">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M10.5 3.5l-7 7M3.5 3.5l7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Form -->
+  <div class="card">
+    <form id="prdForm" class="form-grid" novalidate>
+      <div class="form-row">
+        <div class="field">
+          <label for="featureName">Feature Name</label>
+          <input type="text" id="featureName" placeholder="e.g. One-click checkout" required />
+        </div>
+        <div class="field">
+          <label for="targetUsers">Target Users</label>
+          <input type="text" id="targetUsers" placeholder="e.g. Mobile shoppers, 25–40" required />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="problemDesc">Problem Description</label>
+        <textarea id="problemDesc" placeholder="What problem are you solving? What pain points exist today?" required></textarea>
+      </div>
+
+      <div class="field">
+        <label for="businessGoal">Business Goal</label>
+        <textarea id="businessGoal" placeholder="What business outcome should this drive? e.g. Reduce cart abandonment by 15%" required></textarea>
+      </div>
+
+      <div id="errorBox" class="error-box" role="alert">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" flex-shrink="0">
+          <circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M7 4v3M7 9.5v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <span id="errorText"></span>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-generate" id="generateBtn">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+          <path d="M7.5 1v13M1 7.5h13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="display:none" id="plusIcon"/>
+          <path d="M2 5l5.5 2L13 5M2 10l5.5-2L13 10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" id="sparkIcon"/>
+        </svg>
+        <span id="btnLabel">Generate PRD</span>
+      </button>
+    </form>
+  </div>
+
+  <!-- Output -->
+  <div id="output-section">
+    <div class="output-header">
+      <span class="output-title">Generated PRD</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="copy-feedback" id="copyFeedback">Copied!</span>
+        <button class="btn btn-ghost" id="copyBtn" style="padding:7px 12px;font-size:13px">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+            <rect x="4.5" y="4.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.3"/>
+            <path d="M1 8.5V2A1 1 0 0 1 2 1h6.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+          </svg>
+          Copy
+        </button>
+      </div>
+    </div>
+    <div class="card" style="padding:28px 32px">
+      <div class="prd-body" id="prdOutput"></div>
+    </div>
+  </div>
+
+  <footer>Your API key is never sent anywhere except Anthropic's servers and is only held in sessionStorage.</footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── State ──────────────────────────────────────────────────────
+  const SESSION_KEY = 'prd_assistant_api_key';
+  let abortController = null;
+  let rawPrdText = '';
+
+  // ── DOM refs ───────────────────────────────────────────────────
+  const apiKeyInput  = document.getElementById('apiKeyInput');
+  const apiBanner    = document.getElementById('apiBanner');
+  const apiClear     = document.getElementById('apiClear');
+  const prdForm      = document.getElementById('prdForm');
+  const generateBtn  = document.getElementById('generateBtn');
+  const btnLabel     = document.getElementById('btnLabel');
+  const errorBox     = document.getElementById('errorBox');
+  const errorText    = document.getElementById('errorText');
+  const outputSection= document.getElementById('output-section');
+  const prdOutput    = document.getElementById('prdOutput');
+  const copyBtn      = document.getElementById('copyBtn');
+  const copyFeedback = document.getElementById('copyFeedback');
+
+  // ── Restore API key ────────────────────────────────────────────
+  const savedKey = sessionStorage.getItem(SESSION_KEY);
+  if (savedKey) {
+    apiKeyInput.value = savedKey;
+    apiBanner.classList.add('has-key');
+  }
+
+  apiKeyInput.addEventListener('input', () => {
+    const val = apiKeyInput.value.trim();
+    if (val) {
+      sessionStorage.setItem(SESSION_KEY, val);
+      apiBanner.classList.add('has-key');
+    } else {
+      sessionStorage.removeItem(SESSION_KEY);
+      apiBanner.classList.remove('has-key');
+    }
+  });
+
+  apiClear.addEventListener('click', () => {
+    apiKeyInput.value = '';
+    sessionStorage.removeItem(SESSION_KEY);
+    apiBanner.classList.remove('has-key');
+    apiKeyInput.focus();
+  });
+
+  // ── Helpers ────────────────────────────────────────────────────
+  function showError(msg) {
+    errorText.textContent = msg;
+    errorBox.classList.add('visible');
+  }
+  function clearError() {
+    errorBox.classList.remove('visible');
+  }
+
+  function setLoading(on) {
+    if (on) {
+      generateBtn.disabled = true;
+      generateBtn.innerHTML = `<div class="spinner"></div><span>Generating…</span>`;
+    } else {
+      generateBtn.disabled = false;
+      generateBtn.innerHTML = `
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+          <path d="M2 5l5.5 2L13 5M2 10l5.5-2L13 10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Generate PRD</span>`;
+    }
+  }
+
+  // ── Markdown → HTML (lightweight) ─────────────────────────────
+  function mdToHtml(md) {
+    let html = '';
+    const lines = md.split('\n');
+    let inUl = false, inOl = false;
+
+    function closeList() {
+      if (inUl) { html += '</ul>'; inUl = false; }
+      if (inOl) { html += '</ol>'; inOl = false; }
+    }
+
+    function inline(str) {
+      return str
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+        .replace(/~~([^~]+)~~/g, '<del>$1</del>');
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+      const raw = lines[i];
+      const line = raw.trimEnd();
+
+      if (/^#{1,2} /.test(line)) {
+        closeList();
+        const text = line.replace(/^#+\s*/, '');
+        html += `<h2>${inline(text)}</h2>`;
+      } else if (/^### /.test(line)) {
+        closeList();
+        const text = line.replace(/^###\s*/, '');
+        html += `<h3>${inline(text)}</h3>`;
+      } else if (/^[-*•] /.test(line)) {
+        if (inOl) { html += '</ol>'; inOl = false; }
+        if (!inUl) { html += '<ul>'; inUl = true; }
+        html += `<li>${inline(line.replace(/^[-*•]\s*/, ''))}</li>`;
+      } else if (/^\d+\. /.test(line)) {
+        if (inUl) { html += '</ul>'; inUl = false; }
+        if (!inOl) { html += '<ol>'; inOl = true; }
+        html += `<li>${inline(line.replace(/^\d+\.\s*/, ''))}</li>`;
+      } else if (line.trim() === '---' || line.trim() === '***') {
+        closeList();
+        html += '<hr>';
+      } else if (line.trim() === '') {
+        closeList();
+      } else {
+        closeList();
+        html += `<p>${inline(line)}</p>`;
+      }
+    }
+    closeList();
+    return html;
+  }
+
+  // ── Streaming render ───────────────────────────────────────────
+  function renderStreaming(text, done) {
+    prdOutput.innerHTML = mdToHtml(text) + (done ? '' : '<span class="cursor"></span>');
+  }
+
+  // ── Copy ───────────────────────────────────────────────────────
+  copyBtn.addEventListener('click', async () => {
+    if (!rawPrdText) return;
+    try {
+      await navigator.clipboard.writeText(rawPrdText);
+    } catch {
+      // fallback
+      const ta = document.createElement('textarea');
+      ta.value = rawPrdText;
+      ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select(); document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    copyFeedback.classList.add('show');
+    setTimeout(() => copyFeedback.classList.remove('show'), 2000);
+  });
+
+  // ── Form submit ────────────────────────────────────────────────
+  prdForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearError();
+
+    const apiKey      = apiKeyInput.value.trim();
+    const featureName = document.getElementById('featureName').value.trim();
+    const targetUsers = document.getElementById('targetUsers').value.trim();
+    const problemDesc = document.getElementById('problemDesc').value.trim();
+    const businessGoal= document.getElementById('businessGoal').value.trim();
+
+    if (!apiKey) { showError('Please enter your Anthropic API key above.'); apiKeyInput.focus(); return; }
+    if (!featureName) { showError('Feature name is required.'); return; }
+    if (!targetUsers)  { showError('Target users is required.'); return; }
+    if (!problemDesc)  { showError('Problem description is required.'); return; }
+    if (!businessGoal) { showError('Business goal is required.'); return; }
+
+    const userPrompt = `Feature Name: ${featureName}
+Target Users: ${targetUsers}
+Problem Description: ${problemDesc}
+Business Goal: ${businessGoal}`;
+
+    // Cancel any previous request
+    if (abortController) abortController.abort();
+    abortController = new AbortController();
+
+    setLoading(true);
+    rawPrdText = '';
+    outputSection.classList.remove('visible');
+    prdOutput.innerHTML = '';
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        signal: abortController.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 4096,
+          stream: true,
+          system: 'You are a senior Product Manager. Generate a thorough PRD in English with these sections: Executive Summary, Problem Statement, Goals & Success Metrics (with realistic KPIs), User Stories, Acceptance Criteria, Edge Cases & Risks, Out of Scope, Dependencies & Stakeholders. Be specific, realistic, and opinionated.',
+          messages: [{ role: 'user', content: userPrompt }],
+        }),
+      });
+
+      if (!response.ok) {
+        let errMsg = `API error ${response.status}`;
+        try {
+          const errJson = await response.json();
+          if (errJson?.error?.message) errMsg = errJson.error.message;
+          if (response.status === 401) errMsg = 'Invalid API key. Please check and try again.';
+          if (response.status === 429) errMsg = 'Rate limit reached. Please wait a moment and retry.';
+        } catch {}
+        throw new Error(errMsg);
+      }
+
+      // Show output area immediately
+      outputSection.classList.add('visible');
+      outputSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // keep incomplete last line
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6).trim();
+          if (data === '[DONE]') break;
+          try {
+            const evt = JSON.parse(data);
+            if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta') {
+              rawPrdText += evt.delta.text;
+              renderStreaming(rawPrdText, false);
+            }
+          } catch {}
+        }
+      }
+
+      renderStreaming(rawPrdText, true);
+
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      showError(err.message || 'An unexpected error occurred. Please try again.');
+      outputSection.classList.remove('visible');
+    } finally {
+      setLoading(false);
+    }
+  });
+})();
+</script>
+</body>
+</html>
