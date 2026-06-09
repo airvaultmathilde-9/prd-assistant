@@ -730,8 +730,8 @@
 
   function loadHistoryEntry(entry) {
     activeHistoryId = entry.id;
-    rawPrdText = entry.content;
-    prdOutput.innerHTML = mdToHtml(entry.content);
+    rawPrdText = entry.content || '';
+    prdOutput.innerHTML = mdToHtml(entry.content || '');
     outputSection.classList.add('visible');
     outputSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     renderHistory();
@@ -823,6 +823,7 @@
 
   // ── Markdown → HTML (lightweight) ─────────────────────────────
   function mdToHtml(md) {
+    if (!md) return '';
     let html = '';
     const lines = md.split('\n');
     let inUl = false, inOl = false;
