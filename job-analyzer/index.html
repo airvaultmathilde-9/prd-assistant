@@ -512,7 +512,7 @@
 
   const SESSION_KEY  = 'job_analyzer_api_key';
   const HISTORY_KEY  = 'job_analyzer_history';
-  const CV_KEY       = 'job_analyzer_cv';
+  const CV_KEY       = 'job_analyzer_cv_v2';
   const MAX_HISTORY  = 20;
 
   let abortController = null;
@@ -677,7 +677,7 @@
     renderItems(document.getElementById('questionsList'), document.getElementById('questionsBlock'), data.interview_questions, 'dot-blue', 'item-row-blue');
 
     resultPanel.classList.add('visible');
-    streamingSection.style.display = 'none';
+    loadingSection.style.display = 'none';
   }
 
   function hideResultPanel() {
@@ -740,10 +740,13 @@
     localStorage.removeItem(CV_KEY);
     uploadZone.style.display = ''; cvLoaded.classList.remove('visible');
   });
-  // Restore saved CV
+  // Restore saved CV (only if it has enough readable words)
   try {
+    localStorage.removeItem('job_analyzer_cv'); // clear old corrupted key
     const saved = JSON.parse(localStorage.getItem(CV_KEY) || 'null');
-    if (saved && saved.name && saved.text) { cvText = saved.text; uploadZone.style.display = 'none'; cvLoaded.classList.add('visible'); cvLoadedName.textContent = saved.name; }
+    const readable = saved && saved.text && (saved.text.match(/[a-zA-ZÀ-ÿ]{3,}/g) || []).length > 20;
+    if (readable) { cvText = saved.text; uploadZone.style.display = 'none'; cvLoaded.classList.add('visible'); cvLoadedName.textContent = saved.name; }
+    else if (saved) localStorage.removeItem(CV_KEY);
   } catch {}
 
   function extractPdfText(binary) {
