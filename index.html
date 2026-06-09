@@ -988,6 +988,12 @@ Business Goal: ${businessGoal}`;
 
       renderStreaming(rawPrdText, true);
 
+      // Clear form fields
+      document.getElementById('featureName').value = '';
+      document.getElementById('targetUsers').value = '';
+      document.getElementById('problemDesc').value = '';
+      document.getElementById('businessGoal').value = '';
+
       // Save to history after successful generation
       const entry = addToHistory(featureName, rawPrdText);
       activeHistoryId = entry.id;
