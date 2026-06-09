@@ -27,6 +27,7 @@
       --radius: 8px;
       --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
       --shadow-md: 0 4px 6px -1px rgba(0,0,0,.07), 0 2px 4px -1px rgba(0,0,0,.04);
+      --sidebar-width: 240px;
     }
 
     body {
@@ -38,7 +39,150 @@
       min-height: 100vh;
     }
 
-    /* ── Layout ── */
+    /* ── Shell ── */
+    .shell {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: var(--sidebar-width);
+      flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      padding: 18px 16px 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .sidebar-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      color: var(--text-muted);
+    }
+
+    .history-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 8px 0;
+    }
+    .history-list::-webkit-scrollbar { width: 4px; }
+    .history-list::-webkit-scrollbar-track { background: transparent; }
+    .history-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .history-empty {
+      padding: 20px 8px;
+      text-align: center;
+      color: var(--text-light);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .history-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      padding: 9px 10px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background .12s;
+      margin-bottom: 2px;
+      border: 1px solid transparent;
+    }
+    .history-item:hover { background: var(--border); }
+    .history-item.active {
+      background: var(--accent-light);
+      border-color: rgba(91,91,214,.2);
+    }
+    .history-item-body { flex: 1; min-width: 0; }
+    .history-item-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .history-item.active .history-item-name { color: var(--accent); }
+    .history-item-date {
+      font-size: 11px;
+      color: var(--text-light);
+      margin-top: 2px;
+    }
+    .history-item-del {
+      flex-shrink: 0;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-light);
+      padding: 2px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity .12s, color .12s;
+    }
+    .history-item:hover .history-item-del { opacity: 1; }
+    .history-item-del:hover { color: var(--danger); }
+
+    .sidebar-footer {
+      flex-shrink: 0;
+      padding: 10px 8px 14px;
+      border-top: 1px solid var(--border);
+    }
+    .btn-clear-all {
+      width: 100%;
+      justify-content: center;
+      font-size: 12px;
+      padding: 7px 12px;
+      color: var(--text-muted);
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      font-weight: 500;
+      transition: background .12s, color .12s, border-color .12s;
+    }
+    .btn-clear-all:hover { background: var(--danger-light); color: var(--danger); border-color: #fecaca; }
+
+    /* ── Mobile sidebar toggle ── */
+    .sidebar-toggle {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      border: none;
+      width: 100%;
+      font-family: 'Inter', sans-serif;
+    }
+    .sidebar-toggle svg { transition: transform .2s; }
+    .sidebar-toggle.open svg { transform: rotate(180deg); }
+
+    /* ── Main content ── */
+    .main {
+      flex: 1;
+      min-width: 0;
+    }
+
     .app {
       max-width: 780px;
       margin: 0 auto;
@@ -301,137 +445,333 @@
       margin-left: 2px;
     }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* ── Mobile ── */
+    @media (max-width: 720px) {
+      .sidebar {
+        position: fixed;
+        left: 0; top: 0;
+        z-index: 100;
+        height: 100%;
+        transform: translateX(-100%);
+        transition: transform .22s ease;
+        box-shadow: var(--shadow-md);
+      }
+      .sidebar.mobile-open {
+        transform: translateX(0);
+      }
+      .sidebar-toggle {
+        display: flex;
+      }
+      .sidebar-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,.25);
+        z-index: 99;
+      }
+      .sidebar-backdrop.visible { display: block; }
+    }
   </style>
 </head>
 <body>
-<div class="app">
 
-  <!-- Header -->
-  <header>
-    <a class="logo" href="#">
-      <div class="logo-icon">
-        <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-          <path d="M2 2h5v5H2V2zm7 0h5v5H9V2zM2 9h5v5H2V9zm7 3h2v-2h2v2h-2v2H9v-2zm2-3h2v2h-2v-2z"/>
-        </svg>
-      </div>
-      <span class="logo-text">PRD Assistant</span>
-    </a>
-    <h1>Generate a PRD in seconds</h1>
-    <p class="subtitle">Describe your feature and get a structured Product Requirements Document.</p>
-  </header>
+<div class="shell">
 
-  <!-- API Key -->
-  <div class="api-banner" id="apiBanner">
-    <div class="api-banner-icon">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M11 5V4a3 3 0 0 0-6 0v1H3.5A1.5 1.5 0 0 0 2 6.5v7A1.5 1.5 0 0 0 3.5 15h9a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 12.5 5H11zm-5 0V4a2 2 0 1 1 4 0v1H6zm2 4a1 1 0 0 1 1 1v1.5a1 1 0 0 1-2 0V10a1 1 0 0 1 1-1z" fill="currentColor" style="color:var(--text-muted)"/>
-      </svg>
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar" aria-label="PRD History">
+    <div class="sidebar-header">
+      <div class="sidebar-title">History</div>
     </div>
-    <div class="api-banner-body">
-      <div class="api-banner-label">Anthropic API Key</div>
-      <input
-        type="password"
-        class="api-banner-input"
-        id="apiKeyInput"
-        placeholder="sk-ant-api03-…"
-        autocomplete="off"
-        spellcheck="false"
-      />
+    <div class="history-list" id="historyList">
+      <div class="history-empty" id="historyEmpty">No PRDs yet —<br>generate your first one</div>
     </div>
-    <button class="api-clear" id="apiClear" title="Clear key" aria-label="Clear API key">
+    <div class="sidebar-footer">
+      <button class="btn-clear-all" id="clearAllBtn">Clear all history</button>
+    </div>
+  </aside>
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Mobile toggle -->
+    <button class="sidebar-toggle" id="sidebarToggle" aria-expanded="false" aria-controls="sidebar">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-        <path d="M10.5 3.5l-7 7M3.5 3.5l7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M2 4h10M2 7h10M2 10h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
+      PRD History
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="margin-left:auto">
+        <path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </button>
-  </div>
 
-  <!-- Form -->
-  <div class="card">
-    <form id="prdForm" class="form-grid" novalidate>
-      <div class="form-row">
-        <div class="field">
-          <label for="featureName">Feature Name</label>
-          <input type="text" id="featureName" placeholder="e.g. One-click checkout" required />
-        </div>
-        <div class="field">
-          <label for="targetUsers">Target Users</label>
-          <input type="text" id="targetUsers" placeholder="e.g. Mobile shoppers, 25–40" required />
-        </div>
-      </div>
+    <div class="app">
 
-      <div class="field">
-        <label for="problemDesc">Problem Description</label>
-        <textarea id="problemDesc" placeholder="What problem are you solving? What pain points exist today?" required></textarea>
-      </div>
+      <!-- Header -->
+      <header>
+        <a class="logo" href="#">
+          <div class="logo-icon">
+            <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+              <path d="M2 2h5v5H2V2zm7 0h5v5H9V2zM2 9h5v5H2V9zm7 3h2v-2h2v2h-2v2H9v-2zm2-3h2v2h-2v-2z"/>
+            </svg>
+          </div>
+          <span class="logo-text">PRD Assistant</span>
+        </a>
+        <h1>Generate a PRD in seconds</h1>
+        <p class="subtitle">Describe your feature and get a structured Product Requirements Document.</p>
+      </header>
 
-      <div class="field">
-        <label for="businessGoal">Business Goal</label>
-        <textarea id="businessGoal" placeholder="What business outcome should this drive? e.g. Reduce cart abandonment by 15%" required></textarea>
-      </div>
-
-      <div id="errorBox" class="error-box" role="alert">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" flex-shrink="0">
-          <circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.5"/>
-          <path d="M7 4v3M7 9.5v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-        <span id="errorText"></span>
-      </div>
-
-      <button type="submit" class="btn btn-primary btn-generate" id="generateBtn">
-        <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-          <path d="M7.5 1v13M1 7.5h13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="display:none" id="plusIcon"/>
-          <path d="M2 5l5.5 2L13 5M2 10l5.5-2L13 10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" id="sparkIcon"/>
-        </svg>
-        <span id="btnLabel">Generate PRD</span>
-      </button>
-    </form>
-  </div>
-
-  <!-- Output -->
-  <div id="output-section">
-    <div class="output-header">
-      <span class="output-title">Generated PRD</span>
-      <div style="display:flex;align-items:center;gap:10px">
-        <span class="copy-feedback" id="copyFeedback">Copied!</span>
-        <button class="btn btn-ghost" id="copyBtn" style="padding:7px 12px;font-size:13px">
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-            <rect x="4.5" y="4.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.3"/>
-            <path d="M1 8.5V2A1 1 0 0 1 2 1h6.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+      <!-- API Key -->
+      <div class="api-banner" id="apiBanner">
+        <div class="api-banner-icon">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M11 5V4a3 3 0 0 0-6 0v1H3.5A1.5 1.5 0 0 0 2 6.5v7A1.5 1.5 0 0 0 3.5 15h9a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 12.5 5H11zm-5 0V4a2 2 0 1 1 4 0v1H6zm2 4a1 1 0 0 1 1 1v1.5a1 1 0 0 1-2 0V10a1 1 0 0 1 1-1z" fill="currentColor" style="color:var(--text-muted)"/>
           </svg>
-          Copy
+        </div>
+        <div class="api-banner-body">
+          <div class="api-banner-label">Anthropic API Key</div>
+          <input
+            type="password"
+            class="api-banner-input"
+            id="apiKeyInput"
+            placeholder="sk-ant-api03-…"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </div>
+        <button class="api-clear" id="apiClear" title="Clear key" aria-label="Clear API key">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M10.5 3.5l-7 7M3.5 3.5l7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
         </button>
       </div>
-    </div>
-    <div class="card" style="padding:28px 32px">
-      <div class="prd-body" id="prdOutput"></div>
-    </div>
-  </div>
 
-  <footer>Your API key is never sent anywhere except Anthropic's servers and is only held in sessionStorage.</footer>
-</div>
+      <!-- Form -->
+      <div class="card">
+        <form id="prdForm" class="form-grid" novalidate>
+          <div class="form-row">
+            <div class="field">
+              <label for="featureName">Feature Name</label>
+              <input type="text" id="featureName" placeholder="e.g. One-click checkout" required />
+            </div>
+            <div class="field">
+              <label for="targetUsers">Target Users</label>
+              <input type="text" id="targetUsers" placeholder="e.g. Mobile shoppers, 25–40" required />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="problemDesc">Problem Description</label>
+            <textarea id="problemDesc" placeholder="What problem are you solving? What pain points exist today?" required></textarea>
+          </div>
+
+          <div class="field">
+            <label for="businessGoal">Business Goal</label>
+            <textarea id="businessGoal" placeholder="What business outcome should this drive? e.g. Reduce cart abandonment by 15%" required></textarea>
+          </div>
+
+          <div id="errorBox" class="error-box" role="alert">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" flex-shrink="0">
+              <circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M7 4v3M7 9.5v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            <span id="errorText"></span>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-generate" id="generateBtn">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+              <path d="M7.5 1v13M1 7.5h13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="display:none" id="plusIcon"/>
+              <path d="M2 5l5.5 2L13 5M2 10l5.5-2L13 10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" id="sparkIcon"/>
+            </svg>
+            <span id="btnLabel">Generate PRD</span>
+          </button>
+        </form>
+      </div>
+
+      <!-- Output -->
+      <div id="output-section">
+        <div class="output-header">
+          <span class="output-title">Generated PRD</span>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="copy-feedback" id="copyFeedback">Copied!</span>
+            <button class="btn btn-ghost" id="copyBtn" style="padding:7px 12px;font-size:13px">
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                <rect x="4.5" y="4.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.3"/>
+                <path d="M1 8.5V2A1 1 0 0 1 2 1h6.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+              </svg>
+              Copy
+            </button>
+          </div>
+        </div>
+        <div class="card" style="padding:28px 32px">
+          <div class="prd-body" id="prdOutput"></div>
+        </div>
+      </div>
+
+      <footer>Your API key is never sent anywhere except Anthropic's servers and is only held in sessionStorage.</footer>
+    </div><!-- /.app -->
+  </div><!-- /.main -->
+</div><!-- /.shell -->
 
 <script>
 (function () {
   'use strict';
 
+  // ── Constants ──────────────────────────────────────────────────
+  const SESSION_KEY  = 'prd_assistant_api_key';
+  const HISTORY_KEY  = 'prd_history';
+  const MAX_HISTORY  = 20;
+
   // ── State ──────────────────────────────────────────────────────
-  const SESSION_KEY = 'prd_assistant_api_key';
   let abortController = null;
   let rawPrdText = '';
+  let activeHistoryId = null;
 
   // ── DOM refs ───────────────────────────────────────────────────
-  const apiKeyInput  = document.getElementById('apiKeyInput');
-  const apiBanner    = document.getElementById('apiBanner');
-  const apiClear     = document.getElementById('apiClear');
-  const prdForm      = document.getElementById('prdForm');
-  const generateBtn  = document.getElementById('generateBtn');
-  const btnLabel     = document.getElementById('btnLabel');
-  const errorBox     = document.getElementById('errorBox');
-  const errorText    = document.getElementById('errorText');
-  const outputSection= document.getElementById('output-section');
-  const prdOutput    = document.getElementById('prdOutput');
-  const copyBtn      = document.getElementById('copyBtn');
-  const copyFeedback = document.getElementById('copyFeedback');
+  const apiKeyInput   = document.getElementById('apiKeyInput');
+  const apiBanner     = document.getElementById('apiBanner');
+  const apiClear      = document.getElementById('apiClear');
+  const prdForm       = document.getElementById('prdForm');
+  const generateBtn   = document.getElementById('generateBtn');
+  const btnLabel      = document.getElementById('btnLabel');
+  const errorBox      = document.getElementById('errorBox');
+  const errorText     = document.getElementById('errorText');
+  const outputSection = document.getElementById('output-section');
+  const prdOutput     = document.getElementById('prdOutput');
+  const copyBtn       = document.getElementById('copyBtn');
+  const copyFeedback  = document.getElementById('copyFeedback');
+  const historyList   = document.getElementById('historyList');
+  const historyEmpty  = document.getElementById('historyEmpty');
+  const clearAllBtn   = document.getElementById('clearAllBtn');
+  const sidebar       = document.getElementById('sidebar');
+  const sidebarToggle = document.getElementById('sidebarToggle');
+  const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+
+  // ── History storage ────────────────────────────────────────────
+  function loadHistory() {
+    try {
+      return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    } catch { return []; }
+  }
+
+  function saveHistory(history) {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  }
+
+  function addToHistory(featureName, content) {
+    const history = loadHistory();
+    const entry = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      featureName,
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      content,
+    };
+    history.unshift(entry);
+    if (history.length > MAX_HISTORY) history.splice(MAX_HISTORY);
+    saveHistory(history);
+    return entry;
+  }
+
+  function deleteFromHistory(id) {
+    const history = loadHistory().filter(e => e.id !== id);
+    saveHistory(history);
+  }
+
+  function clearHistory() {
+    localStorage.removeItem(HISTORY_KEY);
+  }
+
+  // ── Sidebar render ─────────────────────────────────────────────
+  function renderHistory() {
+    const history = loadHistory();
+    // Remove all items but keep the empty state node
+    Array.from(historyList.querySelectorAll('.history-item')).forEach(el => el.remove());
+
+    if (history.length === 0) {
+      historyEmpty.style.display = '';
+      return;
+    }
+    historyEmpty.style.display = 'none';
+
+    history.forEach(entry => {
+      const item = document.createElement('div');
+      item.className = 'history-item' + (entry.id === activeHistoryId ? ' active' : '');
+      item.dataset.id = entry.id;
+      item.innerHTML = `
+        <div class="history-item-body">
+          <div class="history-item-name" title="${escHtml(entry.featureName)}">${escHtml(entry.featureName)}</div>
+          <div class="history-item-date">${escHtml(entry.date)}</div>
+        </div>
+        <button class="history-item-del" title="Delete" aria-label="Delete ${escHtml(entry.featureName)}">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M9 3L3 9M3 3l6 6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+        </button>`;
+
+      item.querySelector('.history-item-del').addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteFromHistory(entry.id);
+        if (activeHistoryId === entry.id) activeHistoryId = null;
+        renderHistory();
+      });
+
+      item.addEventListener('click', () => {
+        loadHistoryEntry(entry);
+      });
+
+      historyList.appendChild(item);
+    });
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function loadHistoryEntry(entry) {
+    activeHistoryId = entry.id;
+    rawPrdText = entry.content;
+    prdOutput.innerHTML = mdToHtml(entry.content);
+    outputSection.classList.add('visible');
+    outputSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    renderHistory();
+    closeMobileSidebar();
+  }
+
+  // ── Mobile sidebar ─────────────────────────────────────────────
+  function openMobileSidebar() {
+    sidebar.classList.add('mobile-open');
+    sidebarBackdrop.classList.add('visible');
+    sidebarToggle.classList.add('open');
+    sidebarToggle.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeMobileSidebar() {
+    sidebar.classList.remove('mobile-open');
+    sidebarBackdrop.classList.remove('visible');
+    sidebarToggle.classList.remove('open');
+    sidebarToggle.setAttribute('aria-expanded', 'false');
+  }
+
+  sidebarToggle.addEventListener('click', () => {
+    if (sidebar.classList.contains('mobile-open')) {
+      closeMobileSidebar();
+    } else {
+      openMobileSidebar();
+    }
+  });
+
+  sidebarBackdrop.addEventListener('click', closeMobileSidebar);
+
+  clearAllBtn.addEventListener('click', () => {
+    if (!loadHistory().length) return;
+    clearHistory();
+    activeHistoryId = null;
+    renderHistory();
+  });
+
+  // Init sidebar
+  renderHistory();
 
   // ── Restore API key ────────────────────────────────────────────
   const savedKey = sessionStorage.getItem(SESSION_KEY);
@@ -545,7 +885,6 @@
     try {
       await navigator.clipboard.writeText(rawPrdText);
     } catch {
-      // fallback
       const ta = document.createElement('textarea');
       ta.value = rawPrdText;
       ta.style.position = 'fixed'; ta.style.opacity = '0';
@@ -579,12 +918,12 @@ Target Users: ${targetUsers}
 Problem Description: ${problemDesc}
 Business Goal: ${businessGoal}`;
 
-    // Cancel any previous request
     if (abortController) abortController.abort();
     abortController = new AbortController();
 
     setLoading(true);
     rawPrdText = '';
+    activeHistoryId = null;
     outputSection.classList.remove('visible');
     prdOutput.innerHTML = '';
 
@@ -618,7 +957,6 @@ Business Goal: ${businessGoal}`;
         throw new Error(errMsg);
       }
 
-      // Show output area immediately
       outputSection.classList.add('visible');
       outputSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
@@ -632,7 +970,7 @@ Business Goal: ${businessGoal}`;
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
-        buffer = lines.pop(); // keep incomplete last line
+        buffer = lines.pop();
 
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
@@ -649,6 +987,11 @@ Business Goal: ${businessGoal}`;
       }
 
       renderStreaming(rawPrdText, true);
+
+      // Save to history after successful generation
+      const entry = addToHistory(featureName, rawPrdText);
+      activeHistoryId = entry.id;
+      renderHistory();
 
     } catch (err) {
       if (err.name === 'AbortError') return;
