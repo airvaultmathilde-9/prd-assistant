@@ -202,7 +202,26 @@ function computeActualKm(week) {
 
 function workoutDotClass(type) { return `workout-dot ${type}`; }
 
-function renderWorkoutRow(w) {
+const DAY_OFFSET = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 };
+
+function workoutDateIso(weekStartIso, day) {
+  const d = new Date(`${weekStartIso}T00:00:00`);
+  d.setDate(d.getDate() + DAY_OFFSET[day]);
+  return d.toISOString().slice(0, 10);
+}
+
+/** The Strava run (if any) that landed on this workout's calendar day. */
+function matchedRunForWorkout(week, w) {
+  if (!state.runs || w.type === 'rest') return null;
+  const dateIso = workoutDateIso(week.startDate, w.day);
+  return state.runs.find((r) => (r.start_date_local || r.start_date || '').slice(0, 10) === dateIso) || null;
+}
+
+function renderWorkoutRow(w, week) {
+  const match = week ? matchedRunForWorkout(week, w) : null;
+  const doneTag = match
+    ? `<span class="workout-done">✓ ${((match.distance || 0) / 1000).toFixed(1)} km logged</span>`
+    : '';
   return `
     <div class="workout">
       <div class="workout-day">${w.day}</div>
@@ -210,6 +229,7 @@ function renderWorkoutRow(w) {
       <div class="workout-body">
         <div class="workout-name">${w.name}</div>
         <div class="workout-desc">${w.description}</div>
+        ${doneTag}
       </div>
       <div class="workout-dist">${w.distanceKm > 0 ? fmtKm(w.distanceKm) : '—'}</div>
     </div>`;
@@ -253,7 +273,7 @@ function viewDashboard() {
       </div>
       ${actualKm != null ? `<div class="progress-track"><div class="progress-fill ${pct >= 100 ? 'over' : ''}" style="width:${Math.min(100, pct)}%"></div></div>` : ''}
       <div class="divider"></div>
-      ${week.workouts.map(renderWorkoutRow).join('')}
+      ${week.workouts.map((wk) => renderWorkoutRow(wk, week)).join('')}
       <div class="btn-row">
         <button class="btn btn-primary" data-action="open-checkin" data-week="${idx}">${hasCheckin ? 'Update this week’s check-in' : 'Log this week’s check-in'}</button>
       </div>
@@ -293,7 +313,7 @@ function viewPlan() {
             </div>
             <span class="muted">${fmtKm(w.targetDistanceKm)} ${state.openWeek === i ? '▲' : '▼'}</span>
           </div>
-          ${state.openWeek === i ? `<div style="padding: 0 4px 12px;">${w.workouts.map(renderWorkoutRow).join('')}${w.checkin ? `<div class="checkin-banner">Check-in: RPE ${w.checkin.rpe}/10, soreness ${w.checkin.soreness}/5, motivation ${w.checkin.motivation}/5${w.checkin.notes ? ` — “${w.checkin.notes}”` : ''}</div>` : ''}</div>` : ''}
+          ${state.openWeek === i ? `<div style="padding: 0 4px 12px;">${w.workouts.map((wk) => renderWorkoutRow(wk, w)).join('')}${w.checkin ? `<div class="checkin-banner">Check-in: RPE ${w.checkin.rpe}/10, soreness ${w.checkin.soreness}/5, motivation ${w.checkin.motivation}/5${w.checkin.notes ? ` — “${w.checkin.notes}”` : ''}</div>` : ''}</div>` : ''}
           <div class="divider"></div>
         </div>`).join('')}
     </div>`;
@@ -413,7 +433,17 @@ async function refreshStravaData(showToast) {
   try {
     state.runs = await strava.fetchRecentRuns(12);
     if (!state.athlete) state.athlete = await strava.fetchAthlete();
-    if (showToast) toast('Strava data refreshed.');
+
+    let paceZonesUpdated = false;
+    if (state.plan) {
+      const fitness = strava.estimateFitness(state.runs);
+      paceZonesUpdated = engine.refreshPaceZones(state.plan, fitness);
+      if (paceZonesUpdated) savePlan(state.plan);
+    }
+
+    if (showToast) {
+      toast(paceZonesUpdated ? 'Your pace zones improved — upcoming weeks were updated to match.' : 'Strava data refreshed.');
+    }
   } catch (e) {
     if (showToast) toast(e.message, true);
   }

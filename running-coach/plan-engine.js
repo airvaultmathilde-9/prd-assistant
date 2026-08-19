@@ -23,7 +23,7 @@ export const RACE_PRESETS = {
 const EXPERIENCE_MULTIPLIER = { beginner: 0.75, intermediate: 1, advanced: 1.25 };
 const PEAK_WEEKLY_KM_TABLE = { '5k': 35, '10k': 45, half: 55, marathon: 70 };
 
-function raceMeta(raceType, customDistanceKm) {
+export function raceMeta(raceType, customDistanceKm) {
   if (raceType === 'custom') {
     const km = customDistanceKm || 10;
     return {
@@ -370,4 +370,40 @@ export function applyWeeklyCheckin(plan, weekIndex, { rpe, soreness, motivation,
   }
 
   return plan;
+}
+
+/**
+ * Re-estimate pace zones from the athlete's latest Strava runs and, if
+ * fitness has genuinely improved (a faster sustained effort than what the
+ * plan was built on), refresh the pace targets on every week that hasn't
+ * started yet. Distances/phases are untouched — only the min/km targets and
+ * their descriptions. Past weeks and their check-in history are never
+ * rewritten. Returns true if the plan was updated.
+ */
+export function refreshPaceZones(plan, fitness) {
+  if (!fitness || !fitness.thresholdPaceMinKm) return false;
+
+  const newZones = paceZonesFromThreshold(fitness.thresholdPaceMinKm);
+  const current = plan.paceZones;
+  const improved = !current || fitness.thresholdPaceMinKm < current.threshold * 0.99;
+  if (!improved) return false;
+
+  plan.paceZones = newZones;
+  const meta = raceMeta(plan.raceType, plan.raceDistanceKm);
+  const currentIdx = getCurrentWeekIndex(plan);
+
+  for (let i = currentIdx; i < plan.weeks.length; i += 1) {
+    const week = plan.weeks[i];
+    week.workouts = buildWeekWorkouts({
+      weekIndex: week.index,
+      phase: week.phase,
+      targetDistanceKm: week.targetDistanceKm,
+      daysPerWeek: plan.daysPerWeek,
+      longRunDay: plan.longRunDay,
+      raceType: plan.raceType,
+      maxLongRunKm: meta.maxLongRunKm,
+      paceZones: newZones,
+    });
+  }
+  return true;
 }
