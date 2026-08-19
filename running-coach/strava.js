@@ -182,11 +182,29 @@ export async function fetchRecentRuns(weeks = 12) {
     .sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
 }
 
+/**
+ * Strava's `start_date_local` looks like a UTC timestamp (trailing "Z") but
+ * actually encodes the activity's local wall-clock time — letting
+ * `new Date(...)` parse it directly reinterprets that local time as UTC and
+ * can shift the calendar date by a day. Read the date fields literally
+ * instead of trusting the timezone suffix.
+ */
+function toLocalDateOnly(dateLike) {
+  const [y, m, d] = String(dateLike).slice(0, 10).split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function toLocalIsoDate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 /** Monday 00:00 (local time) of the week containing `date`. */
 function weekStart(date) {
-  const d = new Date(date);
+  const d = toLocalDateOnly(date);
   const day = (d.getDay() + 6) % 7; // 0 = Monday
-  d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() - day);
   return d;
 }
@@ -199,7 +217,7 @@ export function summarizeByWeek(runs) {
   const weeks = new Map();
 
   for (const run of runs) {
-    const key = weekStart(run.start_date_local || run.start_date).toISOString().slice(0, 10);
+    const key = toLocalIsoDate(weekStart(run.start_date_local || run.start_date));
     if (!weeks.has(key)) {
       weeks.set(key, { weekStart: key, distanceKm: 0, movingMin: 0, elevationM: 0, runCount: 0 });
     }

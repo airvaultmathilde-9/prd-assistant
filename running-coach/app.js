@@ -65,9 +65,15 @@ function parseDuration(text) {
   if (parts.length === 2) return parts[0] + parts[1] / 60;
   return parts[0];
 }
+function toLocalIsoDate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 function tomorrowIso() {
   const d = new Date(); d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  return toLocalIsoDate(d);
 }
 
 // ── Topbar ───────────────────────────────────────────────────────────
@@ -207,7 +213,7 @@ const DAY_OFFSET = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 };
 function workoutDateIso(weekStartIso, day) {
   const d = new Date(`${weekStartIso}T00:00:00`);
   d.setDate(d.getDate() + DAY_OFFSET[day]);
-  return d.toISOString().slice(0, 10);
+  return toLocalIsoDate(d);
 }
 
 /** The Strava run (if any) that landed on this workout's calendar day. */
