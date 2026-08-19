@@ -36,22 +36,39 @@ export function raceMeta(raceType, customDistanceKm) {
   return RACE_PRESETS[raceType] || RACE_PRESETS['10k'];
 }
 
+/**
+ * Strava's `start_date_local` and our own `<input type=date>` values are
+ * plain "YYYY-MM-DD" (or that prefix of a longer string) representing a
+ * calendar date with no timezone attached. Letting `new Date(...)` parse
+ * those directly treats them as UTC midnight, which silently shifts the
+ * date by a day in any timezone ahead of or behind UTC. Every date in this
+ * module is built and formatted through local Date fields instead, so
+ * "today" and week boundaries always match the runner's actual calendar.
+ */
+function toDateOnly(date) {
+  if (date instanceof Date) return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const [y, m, d] = String(date).slice(0, 10).split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 function mondayOf(date) {
-  const d = new Date(date);
+  const d = toDateOnly(date);
   const day = (d.getDay() + 6) % 7;
-  d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() - day);
   return d;
 }
 
 function addDays(date, n) {
-  const d = new Date(date);
+  const d = toDateOnly(date);
   d.setDate(d.getDate() + n);
   return d;
 }
 
 function isoDate(d) {
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function clamp(v, min, max) {
@@ -299,7 +316,7 @@ export function generatePlan({
     raceType,
     raceLabel: meta.label,
     raceDistanceKm: meta.km,
-    raceDate: isoDate(new Date(raceDate)),
+    raceDate: isoDate(toDateOnly(raceDate)),
     targetTimeMinutes: targetTimeMinutes || null,
     daysPerWeek,
     longRunDay,
