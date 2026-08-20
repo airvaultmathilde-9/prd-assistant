@@ -270,7 +270,7 @@ function viewDashboard() {
     <div class="card">
       <div class="card-title">
         <span>This week · ${weekRangeLabel(week.startDate)} <span class="badge ${week.phase}">${week.phase}</span></span>
-        ${state.runs ? `<button class="icon-btn" data-action="refresh-strava">Refresh</button>` : ''}
+        ${strava.isConnected() ? `<button class="icon-btn" data-action="refresh-strava">Refresh</button>` : ''}
       </div>
       <div class="stat-row" style="margin-bottom:14px;">
         <div class="stat"><div class="stat-value">${fmtKm(week.targetDistanceKm)}</div><div class="stat-label">Planned</div></div>
@@ -451,7 +451,7 @@ async function refreshStravaData(showToast) {
       toast(paceZonesUpdated ? 'Your pace zones improved — upcoming weeks were updated to match.' : 'Strava data refreshed.');
     }
   } catch (e) {
-    if (showToast) toast(e.message, true);
+    toast(`Couldn't sync with Strava: ${e.message}`, true);
   }
 }
 
