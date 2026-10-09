@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Courses La Fourche</title>
+  <meta name="description" content="Transforme les recettes de la semaine en liste de courses La Fourche." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="entete">
+    <div class="entete-contenu">
+      <h1>Courses La Fourche</h1>
+      <p class="sous-titre">Recettes de la semaine → liste de courses. Tout reste dans ton navigateur.</p>
+    </div>
+    <nav class="onglets" role="tablist" aria-label="Sections">
+      <button type="button" role="tab" data-onglet="recettes">Recettes</button>
+      <button type="button" role="tab" data-onglet="liste">Liste</button>
+      <button type="button" role="tab" data-onglet="catalogue">Catalogue</button>
+    </nav>
+  </header>
+
+  <div id="alerte-stockage" class="alerte" hidden>
+    Le stockage du navigateur est indisponible : rien ne sera mémorisé après fermeture de la page.
+  </div>
+
+  <main id="app" class="page"></main>
+  <div id="toasts" aria-live="polite"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

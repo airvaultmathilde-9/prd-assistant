@@ -55,7 +55,9 @@ courses-lafourche/
 │   ├── normalisation.js    # minuscules, espaces, pluriels, alias
 │   ├── fusion.js           # regroupement et addition des quantités
 │   ├── catalogue.js        # CSV <-> objets, correspondance, nb de produits
+│   ├── liste.js            # assemble la liste (point d'entrée du moteur)
 │   └── rendu.js            # liste -> Markdown (copie / export)
+├── package.json            # uniquement "type": "module" et le script de test
 ├── donnees/
 │   ├── alias-defaut.csv    # alias proposés au premier lancement
 │   └── placard-defaut.txt  # placard proposé au premier lancement
@@ -70,7 +72,8 @@ courses-lafourche/
   doit fonctionner telle quelle sur GitHub Pages.
 - La logique (`moteur/`) ne touche jamais au DOM ni au `localStorage` :
   fonctions pures, entrées → sorties.
-- Tests : `node --test tests/` (Node 20+, module `node:test` intégré).
+- Tests : `npm test` (= `node --test tests/*.test.js`, Node 20+, module
+  `node:test` intégré).
   Lancer les tests avant chaque commit.
 - Interface utilisable sur téléphone (mise en page fluide, pas de défilement
   horizontal).
@@ -161,7 +164,7 @@ Ils n'apparaissent pas dans « À commander » mais dans une section repliée
 ### Liste de courses (affichage et export Markdown)
 
 ```markdown
-# Courses — semaine du 12 octobre 2026
+# Courses du 12 octobre 2026
 
 Recettes : Curry de lentilles, Gratin de courge
 
