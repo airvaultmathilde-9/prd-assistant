@@ -198,9 +198,10 @@ petit texte), pour pouvoir vérifier.
 - **Affichage** : virgule décimale française, kg/L au-delà de 1000 g/ml.
 - **Lien de recherche** : construit avec `encodeURIComponent` à partir du nom
   canonique, sur un modèle d'URL défini en **une seule constante**
-  (`URL_RECHERCHE` dans `moteur/catalogue.js`). Le modèle exact n'est pas
-  encore confirmé par l'utilisatrice : le marquer `// À VÉRIFIER` tant que
-  ce n'est pas fait.
+  (`URL_RECHERCHE` dans `moteur/catalogue.js`) :
+  `https://lafourche.fr/search?query=<terme encodé>`
+  (ex. `https://lafourche.fr/search?query=lentilles%20corail`), format
+  confirmé par l'utilisatrice.
 - **Ordre de la liste** : alphabétique par ingrédient dans chaque section.
 
 ## Sécurité et confidentialité
