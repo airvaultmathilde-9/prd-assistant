@@ -48,6 +48,13 @@ export function extraireLignes(texte) {
 
   if (avecSection) return { lignes: trouvees, avecSection };
 
+  // Une simple liste d'ingrédients (générée ou tapée) : que des lignes courtes,
+  // aucune étape numérotée. Toutes les lignes sont des ingrédients.
+  const nonVides = lignes.map((l) => l.trim()).filter((l) => l && !ignorable(l));
+  if (nonVides.length && nonVides.every((l) => l.length <= 90 && !/^\d+\s*[.)]\s/.test(l))) {
+    return { lignes: nonVides, avecSection: true };
+  }
+
   // Pas de titre « Ingrédients » : lignes à puce ou commençant par une quantité,
   // en écartant les étapes numérotées (« 1. Préchauffer… ») et les phrases longues.
   for (const ligne of lignes) {
