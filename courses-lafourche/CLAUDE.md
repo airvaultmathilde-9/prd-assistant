@@ -1,87 +1,87 @@
 # Courses La Fourche
 
-Outil personnel en ligne de commande qui transforme les recettes de la semaine
-en liste de courses à commander sur La Fourche (épicerie bio en ligne).
+Petite page web personnelle qui transforme les recettes de la semaine en liste
+de courses à commander sur La Fourche (épicerie bio en ligne).
 
-## Ce que fait l'outil
+Elle fait partie du dépôt `prd-assistant`, à côté de `running-coach/` et
+`job-analyzer/`, et est publiée par GitHub Pages à l'adresse
+`…/courses-lafourche/`.
 
-1. Lit toutes les recettes d'un dossier de semaine (`recettes/AAAA-Sxx/*.txt`).
-2. Extrait les lignes d'ingrédients de chaque recette (texte libre copié du web).
-3. Analyse chaque ligne : quantité, unité, ingrédient.
-4. Normalise le nom de l'ingrédient (minuscules, singulier, alias).
-5. Fusionne les doublons et additionne les quantités compatibles.
-6. Associe chaque ingrédient à un produit du catalogue perso (`donnees/catalogue.csv`).
-7. Calcule le nombre de produits à commander quand le format le permet.
-8. Écrit la liste de courses en Markdown dans `listes/AAAA-Sxx.md`.
+## Ce que fait la page
 
-Commande prévue :
-
-```
-python3 courses.py recettes/2026-S41
-```
+1. L'utilisatrice colle ses recettes de la semaine (une zone de texte par
+   recette, avec un nom ; bouton « + recette »).
+2. La page extrait les lignes d'ingrédients de chaque recette (texte libre
+   copié du web).
+3. Elle analyse chaque ligne : quantité, unité, ingrédient.
+4. Elle normalise le nom de l'ingrédient (minuscules, singulier, alias).
+5. Elle fusionne les doublons et additionne les quantités compatibles.
+6. Elle associe chaque ingrédient à un produit du catalogue perso.
+7. Elle calcule le nombre de produits à commander quand le format le permet.
+8. Elle affiche la liste de courses (cases à cocher, liens cliquables), qu'on
+   peut copier en texte/Markdown ou imprimer.
 
 ## Règles absolues
 
-- **Aucun accès réseau au site La Fourche.** Pas de scraping, pas de requête
-  HTTP, pas d'appel à une API non officielle : leur `robots.txt` l'interdit.
-  L'outil ne fait que *construire* des URL (liens produit du catalogue, liens de
-  recherche) que l'utilisatrice ouvre elle-même dans son navigateur.
+- **Aucun accès réseau au site La Fourche.** Pas de scraping, pas de `fetch`,
+  pas d'appel à une API non officielle : leur `robots.txt` l'interdit.
+  La page ne fait que *construire* des URL (liens produit du catalogue, liens
+  de recherche) que l'utilisatrice ouvre elle-même (`target="_blank"`).
   Cela vaut aussi pour Claude pendant le développement : ne pas utiliser
   WebFetch, curl ou un navigateur sur lafourche.fr pour remplir le catalogue
   ou vérifier des produits.
-- **Tout en français** : messages de la CLI, contenu des fichiers générés,
-  commentaires, docstrings, noms de fichiers de données. Les identifiants de
-  code (variables, fonctions) peuvent rester en français sans accents.
+- **Aucune donnée personnelle ne quitte le navigateur.** Pas de serveur, pas
+  d'analytics, pas de service tiers. Recettes, catalogue, alias et placard
+  sont stockés dans le `localStorage` du navigateur.
+- **Tout en français** : textes de l'interface, messages d'erreur, liste
+  générée, commentaires du code. Les identifiants de code peuvent être en
+  français sans accents.
 - **Ne jamais deviner silencieusement.** Une ligne non comprise, un ingrédient
   absent du catalogue ou des unités impossibles à additionner sont *signalés*
   dans la liste, jamais ignorés ni inventés.
-- **Ne jamais modifier les recettes ni le catalogue** depuis l'outil. Il lit
-  `recettes/` et `donnees/`, il écrit uniquement dans `listes/`.
 
 ## Structure
 
 ```
 courses-lafourche/
 ├── CLAUDE.md
-├── README.md               # mode d'emploi court pour l'utilisatrice
-├── courses.py              # point d'entrée CLI
-├── courses/                # package
-│   ├── extraction.py       # repère la section ingrédients d'une recette
-│   ├── analyse.py          # ligne -> (quantité, unité, ingrédient)
-│   ├── unites.py           # table des unités et conversions
-│   ├── normalisation.py    # minuscules, accents, pluriels, alias
-│   ├── fusion.py           # regroupement et addition des quantités
-│   ├── catalogue.py        # lecture du CSV, correspondance, nb de produits
-│   └── rendu.py            # génération du Markdown
+├── index.html              # la page (onglets : Recettes, Liste, Catalogue)
+├── styles.css
+├── app.js                  # interface : DOM, événements, localStorage
+├── moteur/                 # logique pure, sans DOM, testable avec Node
+│   ├── extraction.js       # repère la section ingrédients d'une recette
+│   ├── analyse.js          # ligne -> { quantite, unite, ingredient }
+│   ├── unites.js           # table des unités et conversions
+│   ├── normalisation.js    # minuscules, espaces, pluriels, alias
+│   ├── fusion.js           # regroupement et addition des quantités
+│   ├── catalogue.js        # CSV <-> objets, correspondance, nb de produits
+│   └── rendu.js            # liste -> Markdown (copie / export)
 ├── donnees/
-│   ├── catalogue.csv       # catalogue perso La Fourche
-│   ├── alias.csv           # variantes -> nom canonique
-│   └── placard.txt         # ingrédients toujours à la maison (ignorés)
-├── recettes/               # NON versionné (.gitignore)
-│   └── 2026-S41/
-│       ├── curry-lentilles.txt
-│       └── gratin-courge.txt
-├── listes/                 # NON versionné (.gitignore)
-│   └── 2026-S41.md
+│   ├── alias-defaut.csv    # alias proposés au premier lancement
+│   └── placard-defaut.txt  # placard proposé au premier lancement
 └── tests/
-    ├── exemples/           # recettes de test, catalogue de test
-    └── test_*.py
+    └── *.test.js           # node --test
 ```
 
 ## Pile technique
 
-- Python 3.11+, **bibliothèque standard uniquement** (`csv`, `re`, `pathlib`,
-  `unicodedata`, `fractions`, `argparse`, `urllib.parse`). Pas de dépendance
-  à installer.
-- Tests avec `unittest` : `python3 -m unittest discover -s tests`.
-- Lancer les tests avant chaque commit.
+- HTML + CSS + JavaScript « vanilla » en modules ES (`<script type="module">`).
+  Aucun framework, aucune étape de build, aucune dépendance npm : la page
+  doit fonctionner telle quelle sur GitHub Pages.
+- La logique (`moteur/`) ne touche jamais au DOM ni au `localStorage` :
+  fonctions pures, entrées → sorties.
+- Tests : `node --test tests/` (Node 20+, module `node:test` intégré).
+  Lancer les tests avant chaque commit.
+- Interface utilisable sur téléphone (mise en page fluide, pas de défilement
+  horizontal).
 
-## Formats des fichiers
+## Données et formats
 
-### Recettes — `recettes/AAAA-Sxx/*.txt`
+### Recettes
 
-Texte libre UTF-8, une recette par fichier, collé tel quel depuis le web.
-Le nom du fichier sert de nom de recette dans la liste.
+Saisies dans la page : un nom + un texte libre collé tel quel depuis le web.
+Conservées dans le `localStorage` jusqu'à ce que l'utilisatrice clique
+« Vider la semaine ». Jamais versionnées.
 
 Repérage des ingrédients :
 - Si une ligne contient « Ingrédients » (titre), on prend les lignes suivantes
@@ -105,9 +105,14 @@ Exemples de lignes à savoir analyser :
 Sel, poivre
 ```
 
-### Catalogue — `donnees/catalogue.csv`
+### Catalogue
 
-UTF-8, séparateur `;` (compatible Excel français), première ligne = en-têtes.
+Modifiable dans l'onglet « Catalogue » (tableau éditable), conservé dans le
+`localStorage`. Boutons **Importer CSV** et **Exporter CSV** pour le
+sauvegarder ou l'éditer dans Excel.
+
+Format CSV : UTF-8, séparateur `;` (compatible Excel français), première
+ligne = en-têtes. À l'import, accepter aussi `,` et le BOM UTF-8 d'Excel.
 
 ```
 ingredient;produit;lien;format
@@ -115,44 +120,50 @@ pois chiche;La Fourche Pois chiches bio 265 g;https://lafourche.fr/products/la-f
 lentille corail;Lentilles corail bio 500 g;https://lafourche.fr/products/...;500 g
 oignon jaune;Oignons jaunes bio filet 1 kg;https://lafourche.fr/products/...;1 kg
 lait de coco;Lait de coco bio 400 ml;https://lafourche.fr/products/...;400 ml
-curry;Curry en poudre bio 40 g;https://lafourche.fr/products/...;40 g
 ```
 
+- `ingredient` : nom canonique (minuscule, singulier) — clé de correspondance.
+- `produit` : nom affiché dans la liste.
 - `lien` : URL produit copiée depuis le navigateur, de la forme
-  `https://lafourche.fr/products/<identifiant>`.
-- `ingredient` : nom canonique (minuscule, singulier) — c'est la clé de
-  correspondance.
+  `https://lafourche.fr/products/<identifiant>`. Refuser à l'import tout lien
+  qui ne commence pas par `https://lafourche.fr/`.
 - `format` : `<nombre> <unité>` (`500 g`, `1 L`, `6 pièces`). Sert à calculer
   le nombre de produits à commander (arrondi au supérieur). Si le format est
   vide ou incompatible avec l'unité du besoin, on affiche le besoin sans calcul.
-- Une ligne en double sur `ingredient` = erreur explicite au chargement.
+- Deux lignes avec le même `ingredient` : erreur affichée à l'import.
 
-### Alias — `donnees/alias.csv`
+Depuis la liste, un ingrédient absent du catalogue a un bouton
+« Ajouter au catalogue » qui pré-remplit une ligne (l'utilisatrice colle
+elle-même le lien et le format).
+
+### Alias
+
+Même principe (onglet Catalogue, section Alias), format `variante;ingredient` :
 
 ```
 variante;ingredient
 oignons jaunes;oignon jaune
-lentilles corail;lentille corail
 lentilles corail décortiquées;lentille corail
 butternut;courge butternut
 ```
 
-Appliqué après la normalisation automatique (minuscules, espaces, pluriel
-simple en -s/-x). Les alias servent pour ce que la règle automatique ne couvre
-pas.
+Appliqués après la normalisation automatique (minuscules, espaces, pluriel
+simple en -s/-x). Valeurs initiales chargées depuis `donnees/alias-defaut.csv`
+au premier lancement uniquement.
 
-### Placard — `donnees/placard.txt`
+### Placard
 
-Un ingrédient canonique par ligne (`sel`, `poivre`, `huile d'olive`…).
-Ces ingrédients n'apparaissent pas dans « À commander » mais dans une section
-repliée « Supposés au placard » pour vérification.
+Liste d'ingrédients toujours à la maison (`sel`, `poivre`, `huile d'olive`…),
+éditable dans la page. Valeurs initiales depuis `donnees/placard-defaut.txt`.
+Ils n'apparaissent pas dans « À commander » mais dans une section repliée
+« Supposés au placard » pour vérification.
 
-### Liste de courses — `listes/AAAA-Sxx.md`
+### Liste de courses (affichage et export Markdown)
 
 ```markdown
-# Courses — semaine 2026-S41
+# Courses — semaine du 12 octobre 2026
 
-Recettes : curry-lentilles, gratin-courge
+Recettes : Curry de lentilles, Gratin de courge
 
 ## À commander (catalogue)
 - [ ] **Lentilles corail bio 500 g** × 1 — besoin : 200 g — [ouvrir](https://…)
@@ -162,14 +173,17 @@ Recettes : curry-lentilles, gratin-courge
 - [ ] courge butternut — besoin : 1,5 kg — [rechercher sur La Fourche](https://…)
 
 ## À vérifier
-- « 1 boîte de tomates concassées » : unité « boîte » non additionnable avec « g »
-- curry-lentilles.txt, ligne « Une belle poignée d'herbes » : non comprise
+- tomates concassées : « 1 boîte » et « 400 g » non additionnables
+- Curry de lentilles, ligne « Une belle poignée d'herbes » : non comprise
 
 <details><summary>Supposés au placard</summary>
 
 - sel, poivre
 </details>
 ```
+
+Chaque ligne indique de quelle(s) recette(s) vient le besoin (au survol ou en
+petit texte), pour pouvoir vérifier.
 
 ## Règles métier
 
@@ -182,22 +196,28 @@ Recettes : curry-lentilles, gratin-courge
 - **Sans quantité** (« sel, poivre », « quelques feuilles de basilic ») :
   ingrédient retenu avec la mention « quantité non précisée ».
 - **Affichage** : virgule décimale française, kg/L au-delà de 1000 g/ml.
-- **Lien de recherche** : construit avec `urllib.parse.quote` à partir du nom
-  canonique, sur un modèle d'URL défini en **une seule constante** dans
-  `catalogue.py` (`URL_RECHERCHE`), à vérifier à la main par l'utilisatrice.
+- **Lien de recherche** : construit avec `encodeURIComponent` à partir du nom
+  canonique, sur un modèle d'URL défini en **une seule constante**
+  (`URL_RECHERCHE` dans `moteur/catalogue.js`). Le modèle exact n'est pas
+  encore confirmé par l'utilisatrice : le marquer `// À VÉRIFIER` tant que
+  ce n'est pas fait.
 - **Ordre de la liste** : alphabétique par ingrédient dans chaque section.
 
-## Confidentialité
+## Sécurité et confidentialité
 
-Le dépôt est publié sur GitHub Pages (`.github/workflows/deploy.yml` publie
-tout le dépôt). Les dossiers `recettes/` et `listes/` sont donc dans
-`.gitignore`. Le catalogue peut être versionné (il ne contient que des liens
-publics) ; ne jamais y mettre d'identifiants ou de lien de compte personnel.
+- Le dépôt entier est publié sur GitHub Pages : ne jamais y versionner de
+  recettes, de liste ni de catalogue personnel. Seuls les fichiers
+  `donnees/*-defaut.*` (génériques) sont versionnés.
+- Tout texte venant de l'utilisatrice (recettes, CSV importé) est inséré dans
+  le DOM via `textContent`, jamais via `innerHTML`.
+- Les liens sont créés avec `rel="noopener noreferrer"`.
+- Toute lecture/écriture `localStorage` est protégée par `try/catch` ; la page
+  fonctionne (sans mémorisation) si le stockage est indisponible.
 
 ## Hors périmètre (pour l'instant)
 
 - Ajustement au nombre de personnes.
 - Remplissage automatique du panier La Fourche.
-- Interface web.
+- Synchronisation entre appareils (passer par Exporter/Importer CSV).
 - Extraction par IA des lignes non comprises (envisageable plus tard, en
   option, sans jamais remplacer le signalement).
