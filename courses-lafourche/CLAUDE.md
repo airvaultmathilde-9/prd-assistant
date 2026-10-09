@@ -111,12 +111,15 @@ UTF-8, séparateur `;` (compatible Excel français), première ligne = en-têtes
 
 ```
 ingredient;produit;lien;format
+pois chiche;La Fourche Pois chiches bio 265 g;https://lafourche.fr/products/la-fourche-pois-chiches-bio-0-265kg;265 g
 lentille corail;Lentilles corail bio 500 g;https://lafourche.fr/products/...;500 g
 oignon jaune;Oignons jaunes bio filet 1 kg;https://lafourche.fr/products/...;1 kg
 lait de coco;Lait de coco bio 400 ml;https://lafourche.fr/products/...;400 ml
 curry;Curry en poudre bio 40 g;https://lafourche.fr/products/...;40 g
 ```
 
+- `lien` : URL produit copiée depuis le navigateur, de la forme
+  `https://lafourche.fr/products/<identifiant>`.
 - `ingredient` : nom canonique (minuscule, singulier) — c'est la clé de
   correspondance.
 - `format` : `<nombre> <unité>` (`500 g`, `1 L`, `6 pièces`). Sert à calculer
