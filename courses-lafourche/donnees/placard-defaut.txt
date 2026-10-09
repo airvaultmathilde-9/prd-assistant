@@ -1,0 +1,4 @@
+# Un ingrédient par ligne : ce que tu as toujours à la maison.
+sel
+poivre
+eau

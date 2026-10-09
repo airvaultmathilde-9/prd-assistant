@@ -1,0 +1,3 @@
+catalogue*.csv
+!donnees/*-defaut.*
+node_modules/
