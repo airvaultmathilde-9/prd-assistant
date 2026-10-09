@@ -12,6 +12,9 @@ import {
 } from '../moteur/catalogue.js';
 import { genererListe } from '../moteur/liste.js';
 import { enMarkdown } from '../moteur/rendu.js';
+import {
+  consigneIngredients, lignesDepuisReponse, devinerDepuisLien, produitsDepuisReponse,
+} from '../moteur/generation.js';
 
 const un = (ligne) => {
   const r = analyserLigne(ligne);
@@ -210,7 +213,7 @@ oignon jaune;Oignons jaunes 1 kg;https://lafourche.fr/products/oignons;1 kg
   assert.equal(oignons.nombre, null);
 
   assert.deepEqual(liste.aChercher.map((i) => i.nom), ['courge butternut', 'tomate concassée']);
-  assert.deepEqual(liste.auPlacard.map((i) => i.nom), ['poivre', 'sel']);
+  assert.deepEqual(liste.dejaLa.map((i) => i.nom), ['poivre', 'sel']);
   assert.ok(liste.aVerifier.some((v) => v.includes('tomate concassée') && v.includes('non additionnables')));
   assert.ok(liste.aVerifier.some((v) => v.includes('non comprise')));
 
@@ -218,5 +221,83 @@ oignon jaune;Oignons jaunes 1 kg;https://lafourche.fr/products/oignons;1 kg
   assert.match(md, /^# Courses du test/);
   assert.match(md, /\*\*Lentilles corail 500 g\*\* × 1 — besoin : 500 g — \[ouvrir\]\(https:\/\/lafourche\.fr\/products\/lentilles\)/);
   assert.match(md, /courge butternut — besoin : 1 kg — \[rechercher sur La Fourche\]\(https:\/\/lafourche\.fr\/search\?query=courge%20butternut\)/);
-  assert.match(md, /Supposés au placard/);
+  assert.match(md, /## Déjà à la maison/);
+});
+
+test('stock : déduction, couvert, sans quantité, incomparable', () => {
+  const recettes = [{ nom: 'R', texte: `- 300 g de riz
+- 2 oignons
+- 500 ml de lait
+- 1 c. à soupe de curry` }];
+  const liste = genererListe({
+    recettes,
+    stock: [
+      { ingredient: 'riz', quantite: '1 kg' },
+      { ingredient: 'oignon', quantite: '1' },
+      { ingredient: 'lait', quantite: '' },
+      { ingredient: 'curry', quantite: '40 g' },
+    ],
+  });
+  assert.deepEqual(liste.dejaLa.map((i) => [i.nom, i.stock]), [['lait', 'en stock'], ['riz', '1 kg en stock']]);
+  const oignon = liste.aChercher.find((i) => i.nom === 'oignon');
+  assert.deepEqual(oignon.besoins, [{ quantite: 1, unite: 'piece' }]);
+  assert.equal(oignon.stock, '1 pièce en stock');
+  assert.ok(liste.aChercher.some((i) => i.nom === 'curry'));
+  assert.ok(liste.aVerifier.some((v) => v.startsWith('curry') && v.includes('non comparable')));
+});
+
+test('génération : consigne et lignes analysables', () => {
+  const c = consigneIngredients({ recette: 'curry de lentilles', personnes: 4, nomsConnus: ['lentille corail'] });
+  assert.match(c, /pour 4 personnes/);
+  assert.match(c, /lentille corail/);
+  const { titre, lignes, ignorees } = lignesDepuisReponse({
+    titre: 'Curry',
+    ingredients: [
+      { quantite: 200, unite: 'g', nom: 'lentille corail' },
+      { quantite: 2, unite: 'pièce', nom: 'oignon jaune' },
+      { quantite: 1, unite: 'c. à soupe', nom: 'huile d\'olive' },
+      { quantite: 0.5, unite: 'l', nom: 'lait de coco' },
+      { quantite: 2, unite: 'gousse', nom: 'ail' },
+      { quantite: null, unite: '', nom: 'sel' },
+      { quantite: 3, unite: 'poignée géante', nom: 'herbe' },
+      { nom: '' },
+    ],
+  });
+  assert.equal(titre, 'Curry');
+  assert.equal(ignorees, 2);
+  assert.deepEqual(lignes, [
+    '- 200 g de lentille corail',
+    '- 2 oignon jaune',
+    "- 1 c. à soupe d'huile d'olive",
+    '- 0,5 l de lait de coco',
+    "- 2 gousses d'ail",
+    '- sel',
+    '- herbe',
+  ]);
+  const analyse = lignes.flatMap(analyserLigne);
+  assert.ok(analyse.every((r) => !r.erreur));
+  assert.deepEqual(analyse.map((r) => [r.quantite, r.unite, r.nom]).slice(0, 5), [
+    [200, 'g', 'lentille corail'], [2, 'piece', 'oignon jaune'], [1, 'cas', "huile d'olive"],
+    [500, 'ml', 'lait de coco'], [2, 'gousse', 'ail'],
+  ]);
+  assert.throws(() => lignesDepuisReponse({}));
+  assert.deepEqual(extraireLignes(lignes.join('\n')).lignes.length, 7);
+});
+
+test('liens produit : devinette depuis l\'adresse et fusion de la réponse', () => {
+  const d = devinerDepuisLien('https://lafourche.fr/products/la-fourche-pois-chiches-bio-0-265kg');
+  assert.deepEqual(d, {
+    lien: 'https://lafourche.fr/products/la-fourche-pois-chiches-bio-0-265kg',
+    produit: 'Pois chiches bio 265 g',
+    ingredient: 'pois chiches',
+    format: '265 g',
+  });
+  assert.equal(devinerDepuisLien('https://lafourche.fr/products/lait-de-coco-bio-400ml').format, '400 ml');
+  assert.equal(devinerDepuisLien('https://exemple.com/products/x'), null);
+  assert.equal(devinerDepuisLien('https://lafourche.fr/search?query=riz'), null);
+  const [p] = produitsDepuisReponse(
+    { produits: [{ ingredient: 'Pois chiche', produit: 'Pois chiches bio La Fourche 265 g', format: 'beaucoup' }] },
+    [d],
+  );
+  assert.deepEqual([p.ingredient, p.produit, p.format, p.lien], ['pois chiche', 'Pois chiches bio La Fourche 265 g', '265 g', d.lien]);
 });

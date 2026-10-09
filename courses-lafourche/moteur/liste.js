@@ -5,7 +5,7 @@ import { analyserLigne } from './analyse.js';
 import { cle, resoudre } from './normalisation.js';
 import { fusionner } from './fusion.js';
 import { lienRecherche, nombreDeProduits } from './catalogue.js';
-import { formatQuantite } from './unites.js';
+import { formatQuantite, lireFormat } from './unites.js';
 
 export function formatBesoins(besoins, sansQuantite) {
   const parts = besoins.map((b) => formatQuantite(b.quantite, b.unite));
@@ -13,12 +13,33 @@ export function formatBesoins(besoins, sansQuantite) {
   return parts.join(' + ');
 }
 
+// Déduit le stock d'un ingrédient. Renvoie { besoins, couvert, note, incomparable }.
+function deduireStock(item, enStock) {
+  const stock = lireFormat(enStock.quantite);
+  if (!enStock.quantite) return { besoins: item.besoins, couvert: true, note: 'en stock' };
+  const note = `${enStock.quantite} en stock`;
+  if (!item.besoins.length) return { besoins: [], couvert: true, note };
+  if (!stock) return { besoins: item.besoins, couvert: false, incomparable: true };
+  const besoin = item.besoins.find((b) => b.unite === stock.unite);
+  if (!besoin) return { besoins: item.besoins, couvert: false, incomparable: true };
+  const reste = besoin.quantite - stock.quantite;
+  const besoins = item.besoins
+    .map((b) => (b === besoin ? { ...b, quantite: reste } : b))
+    .filter((b) => b.quantite > 1e-9);
+  const deduit = `${formatQuantite(stock.quantite, stock.unite)} en stock`;
+  return { besoins, couvert: !besoins.length && !item.sansQuantite, note: deduit };
+}
+
 // recettes : [{ nom, texte }] ; catalogue : entrées validées ;
-// alias : Map(cle -> nom) ; placard : [nom].
-export function genererListe({ recettes, catalogue = [], alias = new Map(), placard = [] }) {
+// alias : Map(cle -> nom) ; stock : [{ ingredient, quantite }] (quantité
+// vide = assez à la maison) ; placard : [nom] (ancien format, sans quantité).
+export function genererListe({ recettes, catalogue = [], alias = new Map(), stock = [], placard = [] }) {
   const parCle = new Map(catalogue.map((e) => [cle(e.ingredient), e]));
-  const placardCles = new Set(placard.map((p) => cle(p)));
-  const connus = new Set([...parCle.keys(), ...placardCles]);
+  const stockParCle = new Map();
+  for (const s of [...placard.map((p) => ({ ingredient: p, quantite: '' })), ...stock]) {
+    if ((s.ingredient || '').trim()) stockParCle.set(cle(s.ingredient), s);
+  }
+  const connus = new Set([...parCle.keys(), ...stockParCle.keys()]);
   for (const nom of alias.values()) connus.add(cle(nom));
 
   const aVerifier = [];
@@ -54,14 +75,23 @@ export function genererListe({ recettes, catalogue = [], alias = new Map(), plac
 
   const aCommander = [];
   const aChercher = [];
-  const auPlacard = [];
-  for (const item of fusionner(entrees)) {
+  const dejaLa = [];
+  for (const brut of fusionner(entrees)) {
+    let item = brut;
     if (item.besoins.length > 1) {
       aVerifier.push(`${item.nom} : ${formatBesoins(item.besoins, false)} — unités non additionnables.`);
     }
-    if (placardCles.has(item.cle)) {
-      auPlacard.push(item);
-      continue;
+    const enStock = stockParCle.get(item.cle);
+    if (enStock) {
+      const d = deduireStock(item, enStock);
+      if (d.incomparable) {
+        aVerifier.push(`${item.nom} : stock « ${enStock.quantite} » non comparable au besoin (${formatBesoins(item.besoins, item.sansQuantite)}), rien n'a été déduit.`);
+      } else if (d.couvert) {
+        dejaLa.push({ ...item, stock: d.note });
+        continue;
+      } else {
+        item = { ...item, besoins: d.besoins, stock: d.note };
+      }
     }
     const produit = parCle.get(item.cle);
     if (produit) {
@@ -78,5 +108,5 @@ export function genererListe({ recettes, catalogue = [], alias = new Map(), plac
     }
   }
 
-  return { recettes: nomsRecettes, aCommander, aChercher, aVerifier, auPlacard };
+  return { recettes: nomsRecettes, aCommander, aChercher, aVerifier, dejaLa };
 }

@@ -15,7 +15,8 @@ export function enMarkdown(liste, titre = titreListe()) {
   for (const i of liste.aCommander) {
     const nb = i.nombre ? ` × ${i.nombre}` : ' × ?';
     const lien = i.lien ? ` — [ouvrir](${i.lien})` : '';
-    l.push(`- [ ] **${i.produit}**${nb} — besoin : ${formatBesoins(i.besoins, i.sansQuantite)}${lien}`);
+    const stock = i.stock ? ` (${i.stock} déduit)` : '';
+    l.push(`- [ ] **${i.produit}**${nb} — besoin : ${formatBesoins(i.besoins, i.sansQuantite)}${stock}${lien}`);
   }
   l.push('', '## Absents du catalogue — à chercher');
   if (!liste.aChercher.length) l.push('_Rien._');
@@ -26,10 +27,9 @@ export function enMarkdown(liste, titre = titreListe()) {
     l.push('', '## À vérifier');
     for (const v of liste.aVerifier) l.push(`- ${v}`);
   }
-  if (liste.auPlacard.length) {
-    l.push('', '<details><summary>Supposés au placard</summary>', '');
-    l.push(`- ${liste.auPlacard.map((i) => i.nom).join(', ')}`);
-    l.push('</details>');
+  if (liste.dejaLa.length) {
+    l.push('', '## Déjà à la maison');
+    for (const i of liste.dejaLa) l.push(`- ${i.nom} — besoin : ${formatBesoins(i.besoins, i.sansQuantite)} (${i.stock})`);
   }
   return l.join('\n') + '\n';
 }

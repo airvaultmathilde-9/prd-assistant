@@ -21,7 +21,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --fond: #141513;
     --surface: #1d1f1c;
     --bordure: #33362f;
@@ -37,6 +37,23 @@
     --ombre: none;
     color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --fond: #141513;
+  --surface: #1d1f1c;
+  --bordure: #33362f;
+  --texte: #ecede8;
+  --texte-doux: #a3a69d;
+  --accent: #7cc48a;
+  --accent-survol: #95d3a1;
+  --accent-clair: #1f3324;
+  --danger: #f19a8f;
+  --danger-clair: #3a1f1c;
+  --alerte: #f5c26b;
+  --alerte-clair: #3a2e17;
+  --ombre: none;
+  color-scheme: dark;
 }
 
 body {
@@ -56,7 +73,7 @@ a:hover { color: var(--accent-survol); }
   background: var(--surface);
   border-bottom: 1px solid var(--bordure);
   position: sticky;
-  top: 0;
+  top: env(safe-area-inset-top, 0px);
   z-index: 10;
 }
 .entete-contenu { max-width: var(--largeur); margin: 0 auto; padding: 16px 16px 8px; }
@@ -97,7 +114,7 @@ a:hover { color: var(--accent-survol); }
 .barre .espace { flex: 1; }
 
 /* ── Champs et boutons ── */
-input[type="text"], input[type="url"], input[type="search"], textarea {
+input[type="text"], input[type="url"], input[type="search"], input[type="number"], textarea {
   width: 100%;
   font: inherit;
   color: inherit;
@@ -107,6 +124,7 @@ input[type="text"], input[type="url"], input[type="search"], textarea {
   padding: 8px 10px;
 }
 textarea { min-height: 160px; resize: vertical; font-size: 14px; }
+textarea.liens { min-height: 90px; }
 textarea.code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; min-height: 120px; }
 input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 input.invalide { border-color: var(--danger); background: var(--danger-clair); }
@@ -155,9 +173,6 @@ input.invalide { border-color: var(--danger); background: var(--danger-clair); }
 #toasts { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); display: grid; gap: 8px; z-index: 20; width: min(420px, calc(100% - 32px)); }
 .toast { background: var(--texte); color: var(--fond); padding: 10px 14px; border-radius: var(--rayon-petit); font-size: 14px; }
 
-/* ── Recettes ── */
-.recette .barre input { flex: 1; min-width: 0; font-weight: 600; }
-
 /* ── Liste ── */
 .liste-titre { font-size: 18px; font-weight: 700; }
 .items { list-style: none; display: grid; gap: 2px; }
@@ -176,16 +191,30 @@ input.invalide { border-color: var(--danger); background: var(--danger-clair); }
 .verifier { padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
 details summary { cursor: pointer; font-weight: 600; }
 
-/* ── Catalogue ── */
+/* ── Recettes ── */
+.recette-entete { display: grid; grid-template-columns: 1fr 96px auto; gap: 10px; align-items: end; }
+.champ { display: grid; gap: 4px; min-width: 0; }
+.etiquette { font-size: 12px; font-weight: 600; color: var(--texte-doux); text-transform: uppercase; letter-spacing: .04em; }
+.champ-nom input { font-weight: 600; }
+.recette-entete .bouton-icone { margin-bottom: 4px; }
+
+/* ── Tableaux éditables (produits, stock) ── */
+.tableau-lignes { display: grid; gap: 6px; }
 .cat-entete, .cat-ligne {
   display: grid;
-  grid-template-columns: 1.1fr 1.4fr 1.6fr .7fr auto;
+  grid-template-columns: 1.6fr 1.1fr 1.4fr .7fr auto;
   gap: 6px;
   align-items: center;
 }
-.cat-entete { font-size: 12px; font-weight: 600; color: var(--texte-doux); padding: 0 2px; }
-.cat-lignes { display: grid; gap: 6px; }
-.cat-ligne input { padding: 6px 8px; font-size: 14px; }
+.stock-entete, .stock-ligne {
+  display: grid;
+  grid-template-columns: 2fr 1fr auto;
+  gap: 6px;
+  align-items: center;
+}
+.cat-entete, .stock-entete { font-size: 12px; font-weight: 600; color: var(--texte-doux); padding: 0 2px; }
+.cat-ligne input, .stock-ligne input { padding: 6px 8px; font-size: 14px; min-width: 0; }
+.details-corps { display: grid; gap: 10px; margin-top: 10px; }
 
 @media (max-width: 640px) {
   .cat-entete { display: none; }
@@ -200,6 +229,7 @@ details summary { cursor: pointer; font-weight: 600; }
   .cat-ligne .champ-produit { grid-area: prod; }
   .cat-ligne .champ-lien { grid-area: lien; }
   .cat-ligne .bouton-icone { grid-area: sup; }
+  .recette-entete { grid-template-columns: 1fr 72px auto; }
 }
 
 /* ── Impression : uniquement la liste ── */
