@@ -11,8 +11,8 @@ abonnements (Netflix, Canal+).
 |---|---|---|
 | 0 ✅ | Structure, secrets, vérification des 3 connexions | Hygiène des secrets |
 | 1 ✅ | Fonctions TMDB : recherche, découverte par critères, détails, plateformes FR | Concevoir un outil |
-| **2** | Import de mes notes dans Pinecone + recherche sémantique | RAG |
-| 3 | Boucle d'agent avec le Claude Agent SDK, outils branchés, limite de tours | Boucle d'agent |
+| 2 ✅ | Import de mes notes dans Pinecone + recherche sémantique | RAG |
+| **3** | Boucle d'agent avec le Claude Agent SDK, outils branchés, limite de tours | Boucle d'agent |
 | 4 | Mémoire des préférences et des retours, skill « recommandation » | Mémoire, skills |
 | 5 | Hooks : aucun film hors TMDB, pas de spoiler, pas de clé dans les logs | Garde-fous |
 | 6 | Interface Streamlit avec cartes de films | Produit |
@@ -80,6 +80,23 @@ tu peux y corriger un `tmdb_id` à la main, puis relancer l'import (sans doublon
 |---|---|
 | `ratings_csv.py` | lit le CSV, retrouve chaque film dans TMDB, écrit le texte à vectoriser |
 | `ratings_store.py` | Pinecone : création de l'index, envoi, `search` (recherche sémantique) et `already_seen` |
+
+## Phase 3 : l'agent
+
+```bash
+cd film-agent
+python agent.py               # conversation dans le Terminal (« quit » pour sortir)
+python agent.py --trace-full  # avec les paramètres complets de chaque appel d'outil
+```
+
+| Fichier | Rôle |
+|---|---|
+| `prompts/system_prompt.md` | les instructions de l'agent : qui il est, comment travailler, règles, format |
+| `agent_tools.py` | les 9 outils (TMDB + mes notes), avec leurs descriptions pour Claude |
+| `agent.py` | assemble l'agent (Claude Agent SDK), fixe les limites, affiche la trace |
+
+Limites : 25 tours et 1 $ maximum par question ; aucun outil intégré de Claude Code
+(pas de terminal, de fichiers ni de web) : l'agent ne peut utiliser que nos 9 outils.
 
 ## Règles
 
