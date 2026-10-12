@@ -18,10 +18,9 @@ from config import ConfigError, get_settings
 from recommend import Answer, Film, recommend
 
 EXAMPLES = [
-    "Un film léger avec de l'humour absurde, pas trop long",
-    "Un film où Adèle Exarchopoulos a un grand rôle",
-    "Quelque chose de léger sur le thème de l'Argentine",
-    "Un film visuellement très beau",
+    "Un film avec Adèle Exarchopoulos en moins de deux heures",
+    "Un drame sur le thème de la Seconde Guerre mondiale",
+    "Un film de Dupieux que je n'ai pas encore vu",
 ]
 ACCESS_LABELS = {"abonnement": "Inclus", "gratuit": "Gratuit", "location": "Location",
                  "achat": "Achat", "autre_abonnement": "Autre abonnement"}
@@ -35,6 +34,12 @@ st.markdown("""
   .label { font-size: .75rem; font-weight: 700; text-transform: uppercase;
            letter-spacing: .06em; opacity: .55; margin: .8rem 0 .1rem; }
   .watch { font-size: .9rem; margin: .4rem 0; }
+  /* Boutons d'exemples : texte complet (sur plusieurs lignes), bien visibles */
+  .st-key-examples button { height: auto; min-height: 4rem; padding: .6rem 1rem;
+      border: 1.5px solid #C2410C; background: #FFF7ED; color: #9A3412; }
+  .st-key-examples button:hover { background: #FFEDD5; border-color: #9A3412; color: #7C2D12; }
+  .st-key-examples button p { white-space: normal !important; overflow: visible !important;
+      text-overflow: clip !important; font-weight: 600; line-height: 1.3; }
   /* Affiches : hauteur fixe, recadrées, pour que les infos restent visibles */
   [data-testid="stImage"] img { height: 300px; object-fit: cover; border-radius: 8px; }
 </style>
@@ -147,7 +152,9 @@ st.caption("Dis-moi ton envie : je cherche dans tes notes et dans le catalogue, 
 if state.history:
     st.caption("Conversation : " + " → ".join(f"« {h} »" for h in state.history))
 
-example_columns = st.columns(len(EXAMPLES))
+with st.container(key="examples"):  # key -> classe CSS « st-key-examples » pour le style
+    st.markdown('<div class="label">Idées pour commencer</div>', unsafe_allow_html=True)
+    example_columns = st.columns(len(EXAMPLES))
 for column, example in zip(example_columns, EXAMPLES):
     # on_click : s'exécute AVANT le réaffichage, seul moment où l'on peut changer le champ texte.
     column.button(example, use_container_width=True, on_click=state.update, args=({"prompt": example},))
@@ -155,7 +162,7 @@ for column, example in zip(example_columns, EXAMPLES):
 with st.form("demande", clear_on_submit=False):
     label = "Ta réponse" if state.answer and state.answer.kind == "question" else "De quoi as-tu envie ?"
     prompt = st.text_area(label, key="prompt", height=90,
-                          placeholder="Ex. : un thriller coréen pas trop violent, ou un film de Dupieux que je n'ai pas vu")
+                          placeholder="Ex. : un thriller coréen pas trop violent, à regarder ce soir")
     left, right = st.columns([3, 1])
     submitted = left.form_submit_button("Trouver 3 films", type="primary", use_container_width=True)
     right.form_submit_button("Nouvelle recherche", use_container_width=True, on_click=reset)
