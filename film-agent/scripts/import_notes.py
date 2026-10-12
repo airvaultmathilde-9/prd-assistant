@@ -9,6 +9,11 @@ l'identifiant TMDB retenu. Tu peux le corriger à la main :
     - remplacer "tmdb_id": null par le bon identifiant (lu dans l'adresse themoviedb.org/movie/12345) ;
     - supprimer une entrée pour que le script la recherche à nouveau.
 Les entrées existantes sont réutilisées telles quelles : relancer l'import est rapide.
+
+Le CSV est la SOURCE DE VÉRITÉ : après l'import, Pinecone contient exactement les films
+du CSV. Modifier une note ou un commentaire -> mis à jour ; supprimer une ligne -> le film
+est retiré de Pinecone. Garde-fou : si plus de la moitié de la base devait disparaître
+(mauvais fichier ?), la suppression est bloquée sauf avec --allow-mass-delete.
 """
 
 from __future__ import annotations
@@ -41,6 +46,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Importe mes notes de films dans Pinecone.")
     parser.add_argument("csv", type=Path)
     parser.add_argument("--dry-run", action="store_true", help="tout préparer sans rien envoyer à Pinecone")
+    parser.add_argument("--allow-mass-delete", action="store_true",
+                        help="autoriser la suppression de plus de la moitié des films de Pinecone")
     args = parser.parse_args()
 
     settings = get_settings()
@@ -107,8 +114,17 @@ def main() -> int:
     store = RatingsStore(settings.pinecone_api_key, settings.pinecone_index)
     if store.ensure_index():
         print(f"\nIndex « {settings.pinecone_index} » créé (AWS us-east-1, multilingual-e5-large).")
+    existing = store.all_ids()
     sent = store.upsert(list(records.values()))
     print(f"\n✅ {sent} films envoyés à Pinecone (index « {settings.pinecone_index} »).")
+
+    stale = sorted(existing - set(records))
+    if stale and len(stale) > len(existing) / 2 and not args.allow_mass_delete:
+        print(f"\n⚠️  {len(stale)} films de Pinecone ne sont plus dans le CSV (plus de la moitié).")
+        print("Suppression bloquée par prudence. Si c'est voulu : relance avec --allow-mass-delete")
+    elif stale:
+        store.delete(stale)
+        print(f"🗑️  {len(stale)} film(s) retiré(s) de Pinecone car absents du CSV : {', '.join(stale)}")
     print("Ils deviennent interrogeables après quelques secondes : python scripts/demo_rag.py")
     return 0
 

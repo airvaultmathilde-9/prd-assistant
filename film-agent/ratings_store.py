@@ -65,6 +65,16 @@ class RatingsStore:
             self.index.upsert_records(namespace=NAMESPACE, records=records[start:start + BATCH_SIZE])
         return len(records)
 
+    def all_ids(self) -> set[str]:
+        """Identifiants de tous les films actuellement dans Pinecone."""
+        return {item.id for page in self.index.list(namespace=NAMESPACE) for item in page.vectors}
+
+    def delete(self, ids: list[str]) -> int:
+        """Supprime des films de Pinecone (irréversible, mais le CSV fait foi : il suffit de réimporter)."""
+        for start in range(0, len(ids), 1000):
+            self.index.delete(ids=ids[start:start + 1000], namespace=NAMESPACE)
+        return len(ids)
+
     # ---------- Les futurs outils de l'agent ----------
 
     def search(self, query: str, top_k: int = 8,

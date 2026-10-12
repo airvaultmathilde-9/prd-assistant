@@ -137,6 +137,12 @@ class FakeIndex:
         hit = SimpleNamespace(score=0.8123, fields={"titre": "Mandibules", "note": 4.0})
         return SimpleNamespace(result=SimpleNamespace(hits=[hit]))
 
+    def list(self, namespace):
+        yield SimpleNamespace(vectors=[SimpleNamespace(id="tmdb-1"), SimpleNamespace(id="tmdb-2")])
+
+    def delete(self, ids, namespace):
+        self.deleted = (ids, namespace)
+
     def fetch(self, ids, namespace):
         stored = {"tmdb-597298": SimpleNamespace(metadata={"note": 4.0})}
         return SimpleNamespace(vectors={i: stored[i] for i in ids if i in stored})
@@ -161,3 +167,11 @@ def test_search_builds_note_filter_and_compact_results():
 def test_already_seen_returns_my_note_or_none():
     store = RatingsStore("k", "mes-films", index=FakeIndex())
     assert store.already_seen([597298, 123]) == {597298: 4.0, 123: None}
+
+
+def test_all_ids_and_delete():
+    index = FakeIndex()
+    store = RatingsStore("k", "mes-films", index=index)
+    assert store.all_ids() == {"tmdb-1", "tmdb-2"}
+    store.delete(["tmdb-2"])
+    assert index.deleted == (["tmdb-2"], "notes")
