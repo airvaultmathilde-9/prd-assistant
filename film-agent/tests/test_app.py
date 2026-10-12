@@ -141,25 +141,50 @@ def test_verify_and_enrich_cleans_texts():
     assert films[0].vibe == "Absurde."
 
 
-def test_seen_popover_adds_the_film_to_my_notes(app, monkeypatch):
-    import seen_films
-    calls = []
-    monkeypatch.setattr(seen_films, "add_seen_film",
-                        lambda tmdb, store, memory, tmdb_id, note, comment: calls.append((tmdb_id, note, comment))
-                        or {"titre": "Mandibules"})
+def run_with_one_card(app, monkeypatch):
     film = Film("choix_sur", 597298, "x", "y", FakeTMDB().get_movie_details(1), FakeTMDB().get_watch_providers(1))
     monkeypatch.setattr(recommend_module, "recommend",
                         fake_recommend(Answer("recommendations", "", [film], "s1")))
     app.run()
     app.text_area[0].input("Un film")
     click_find(app)
-    app.slider[0].set_value(4.5)
-    next(t for t in app.text_input if t.label.startswith("Un mot")).input("Hilarant")
-    next(b for b in app.button if b.label == "Ajouter à mes notes").click().run()
-    assert not app.exception
-    assert calls == [(597298, 4.5, "Hilarant")]
-    assert "ajouté à tes notes" in app.success[0].value
 
+
+def test_seen_opens_a_dialog_and_saves_everything_to_my_notes(app, monkeypatch):
+    import seen_films
+    from memory import Memory
+    calls = []
+
+    def fake_add(tmdb, store, memory, tmdb_id, note, comment, year, status):
+        calls.append((tmdb_id, note, comment, year, status))
+        memory.set_feedback(tmdb_id, "Mandibules", status)
+        return {}
+
+    monkeypatch.setattr(seen_films, "add_seen_film", fake_add)
+    run_with_one_card(app, monkeypatch)
+    app.button_group[0].set_value("vu_pas_aime").run()   # clic sur « Vu et pas aimé »
+    assert not app.exception
+    assert app.slider[0].value == 2.0                    # note par défaut : pas aimé
+    assert Memory().status_of(597298) is None            # rien d'enregistré avant validation
+    app.slider[0].set_value(1.5)
+    app.number_input[0].set_value(2025)
+    app.text_area[-1].input("Trop long, aucun rythme")
+    next(b for b in app.button if b.label == "Enregistrer dans mes notes").click().run()
+    assert not app.exception
+    assert calls == [(597298, 1.5, "Trop long, aucun rythme", 2025, "vu_pas_aime")]
+    assert Memory().status_of(597298) == "vu_pas_aime"
+    assert app.button_group[0].value == "vu_pas_aime"    # le bouton reflète l'enregistrement
+
+
+def test_cancelling_the_dialog_saves_nothing(app, monkeypatch):
+    import seen_films
+    from memory import Memory
+    monkeypatch.setattr(seen_films, "add_seen_film", lambda *a, **k: pytest.fail("ne doit pas être appelé"))
+    run_with_one_card(app, monkeypatch)
+    app.button_group[0].set_value("vu_aime").run()
+    next(b for b in app.button if b.label == "Annuler").click().run()
+    assert not app.exception
+    assert Memory().status_of(597298) is None and app.button_group[0].value is None
 
 def test_card_shows_trailer_button_and_public_rating(app, monkeypatch):
     tmdb = FakeTMDB()

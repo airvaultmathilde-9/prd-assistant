@@ -112,8 +112,10 @@ Limites : 25 tours et 1 $ maximum par question ; aucun outil intégré de Claude
 
 ### « Je l'ai déjà vu » : l'agent apprend
 
-Dis-le à l'agent (« j'ai déjà vu Le Daim, 4/5, très drôle ») ou clique **📝 Je l'ai vu** sous une carte :
-le film est ajouté à tes notes **dans Pinecone** (`seen_films.py`), avec ta note et ton commentaire.
+Dis-le à l'agent (« j'ai déjà vu Le Daim, 4/5, très drôle ») ou clique **✅ Vu et aimé** / **👎 Vu et pas aimé**
+sous une carte : une fenêtre s'ouvre pour compléter la fiche (note, année de visionnage, commentaire).
+Le film est alors ajouté à tes notes **dans Pinecone** (`seen_films.py`), avec les mêmes informations qu'une ligne
+de ton CSV, enrichies par TMDB (réalisation, genres, casting, résumé). Rien n'est enregistré si tu annules.
 Les recherches suivantes s'en servent, comme pour les films de ton CSV.
 
 - Même identifiant que l'import (`tmdb-12345`) : pas de doublon ; si tu l'ajoutes plus tard au CSV, ta version l'emporte.

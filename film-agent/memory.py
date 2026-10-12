@@ -3,7 +3,8 @@
 Stockée dans data/memory/memoire.json : un simple fichier lisible, sur ta machine,
 ignoré par git. Deux sortes de souvenirs :
 - les PRÉFÉRENCES : des phrases durables (« je préfère la VO sous-titrée ») ;
-- les RETOURS sur des films : vu et aimé / pas envie / plus tard.
+- les RETOURS sur des films : vu et aimé / vu et pas aimé / pas envie / plus tard.
+  (Un film « vu » est AUSSI ajouté à mes notes Pinecone, avec sa note : voir seen_films.py.)
 
 Comment l'agent s'en sert : la mémoire est ajoutée au prompt système au début
 de chaque demande (il la « connaît » donc sans avoir à la chercher), et des outils
@@ -22,9 +23,13 @@ MEMORY_FILE = PROJECT_DIR / "data" / "memory" / "memoire.json"
 
 STATUSES = {
     "vu_aime": "✅ Vu et aimé",
+    "vu_pas_aime": "👎 Vu et pas aimé",
     "pas_envie": "🙅 Pas envie",
     "plus_tard": "🕒 Plus tard",
 }
+
+
+SEEN_STATUSES = ("vu_aime", "vu_pas_aime")
 
 
 class Memory:
@@ -94,7 +99,7 @@ class Memory:
             if films:
                 lines += ["", f"## {label}"]
                 lines += [f"- {title} (tmdb_id {tmdb_id})" for tmdb_id, title in films]
-        lines += ["", "Règles : ne recommande JAMAIS un film « Vu et aimé » ni « Pas envie ». "
+        lines += ["", "Règles : ne recommande JAMAIS un film vu (aimé ou pas) ni « Pas envie ». "
                   "Un film « Plus tard » peut être reproposé s'il correspond à la demande : "
                   "dis-lui qu'elle l'avait mis de côté. Respecte toujours les préférences durables."]
         return "\n".join(lines)
