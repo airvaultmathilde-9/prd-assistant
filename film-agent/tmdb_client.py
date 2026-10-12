@@ -135,6 +135,7 @@ class TMDBClient:
         min_vote_average: float | None = None,
         min_vote_count: int = 100,
         original_language: str | None = None,
+        origin_country: str | None = None,
         person_ids: list[int] | None = None,
         keyword_ids: list[int] | None = None,
         max_runtime: int | None = None,
@@ -149,6 +150,7 @@ class TMDBClient:
         - on_my_subscriptions=True : seulement les films inclus dans mes abonnements
           (offre « flatrate » = sans supplément), en France.
         - min_vote_count évite les films notés par 3 personnes avec une moyenne de 10.
+        - origin_country : code pays ISO (« AR » = Argentine), pour « un film argentin ».
         """
         params: dict[str, Any] = {
             "with_genres": ",".join(map(str, genre_ids)) if genre_ids else None,
@@ -158,6 +160,7 @@ class TMDBClient:
             "vote_average.gte": min_vote_average,
             "vote_count.gte": min_vote_count,
             "with_original_language": original_language,
+            "with_origin_country": origin_country,
             # « | » = OU : un film avec l'une OU l'autre de ces personnes / de ces mots-clés.
             "with_people": "|".join(map(str, person_ids)) if person_ids else None,
             "with_keywords": "|".join(map(str, keyword_ids)) if keyword_ids else None,
@@ -231,6 +234,51 @@ class TMDBClient:
             # Les données de disponibilité viennent de JustWatch : TMDB demande de le citer.
             "source": "JustWatch",
         }
+
+    def get_person_filmography(self, person_id: int, role: str = "acting",
+                               max_billing: int | None = None, limit: int = 40) -> list[dict]:
+        """Filmographie d'une personne, du plus récent au plus ancien.
+
+        role = "acting" (films où elle joue) ou "directing" (films qu'elle a réalisés).
+        max_billing (pour "acting") : ne garder que les rôles importants.
+        TMDB classe le casting par ordre d'importance au générique : 0 = tête d'affiche.
+        max_billing=3 garde donc les 4 premiers noms, soit en pratique les rôles principaux.
+
+        Pourquoi pas discover_movies(person_ids=…) ? Parce qu'il mélange tout :
+        un caméo, un film seulement produit ou coscénarisé… Ici on sait QUEL rôle.
+        """
+        if role not in ("acting", "directing"):
+            raise TMDBError("role doit valoir « acting » ou « directing »")
+        data = self._get(f"/person/{person_id}/movie_credits")
+        genre_names = self.genres()
+
+        if role == "acting":
+            credits = [
+                c for c in data.get("cast", [])
+                # On écarte les apparitions « dans son propre rôle » (documentaires, making-of).
+                if not any(w in (c.get("character") or "").lower() for w in ("self", "même"))
+                and (max_billing is None or c.get("order", 99) <= max_billing)
+            ]
+        else:
+            credits = [c for c in data.get("crew", []) if c.get("job") == "Director"]
+
+        films, seen = [], set()
+        for c in credits:
+            if c["id"] in seen or not c.get("release_date"):  # pas de date = pas encore sorti
+                continue
+            seen.add(c["id"])
+            films.append({
+                "tmdb_id": c["id"],
+                "title": c.get("title"),
+                "year": _year(c.get("release_date")),
+                "genres": [genre_names.get(g, str(g)) for g in c.get("genre_ids", [])],
+                "vote_average": round(c.get("vote_average", 0), 1),
+                "vote_count": c.get("vote_count", 0),
+                **({"character": c.get("character"), "billing_order": c.get("order")}
+                   if role == "acting" else {}),
+            })
+        films.sort(key=lambda f: f["year"] or 0, reverse=True)
+        return films[:limit]
 
     def search_person(self, name: str, limit: int = 5) -> list[dict]:
         """Trouver l'identifiant d'un·e cinéaste ou d'un·e acteur·rice (pour discover_movies)."""

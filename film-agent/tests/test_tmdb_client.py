@@ -150,3 +150,44 @@ def test_network_error_does_not_chain_the_url_containing_the_key():
         TMDBClient(FAKE_KEY, http=http).search_movies("x")
     assert FAKE_KEY not in str(info.value)
     assert info.value.__cause__ is None and info.value.__suppress_context__
+
+
+FILMO = {
+    "cast": [
+        {"id": 1, "title": "La Vie d'Adèle", "release_date": "2013-10-09", "order": 0,
+         "character": "Adèle", "genre_ids": [18], "vote_average": 7.6, "vote_count": 3000},
+        {"id": 2, "title": "Petit rôle", "release_date": "2016-01-01", "order": 12,
+         "character": "Serveuse", "genre_ids": [35]},
+        {"id": 3, "title": "Making-of", "release_date": "2014-01-01", "order": 0,
+         "character": "Herself", "genre_ids": [99]},
+        {"id": 4, "title": "Pas encore sorti", "release_date": "", "order": 0, "character": "X"},
+        {"id": 5, "title": "Rien à foutre", "release_date": "2022-03-02", "order": 0,
+         "character": "Cassandre", "genre_ids": [18]},
+    ],
+    "crew": [
+        {"id": 6, "title": "Réalisé", "release_date": "2019-06-19", "job": "Director", "genre_ids": [35]},
+        {"id": 7, "title": "Seulement produit", "release_date": "2020-01-01", "job": "Producer"},
+    ],
+}
+
+
+def test_filmography_main_roles_only_most_recent_first():
+    client = make_client({"/genre/movie/list": (200, GENRES),
+                          "/person/42/movie_credits": (200, FILMO)})
+    films = client.get_person_filmography(42, role="acting", max_billing=3)
+    assert [f["title"] for f in films] == ["Rien à foutre", "La Vie d'Adèle"]
+    assert films[1]["genres"] == ["Drame"] and films[1]["billing_order"] == 0
+
+
+def test_filmography_directing_ignores_other_crew_jobs():
+    client = make_client({"/genre/movie/list": (200, GENRES),
+                          "/person/42/movie_credits": (200, FILMO)})
+    assert [f["title"] for f in client.get_person_filmography(42, role="directing")] == ["Réalisé"]
+
+
+def test_discover_by_origin_country():
+    calls = []
+    client = make_client({"/genre/movie/list": (200, GENRES),
+                          "/discover/movie": (200, {"results": []})}, calls)
+    client.discover_movies(origin_country="AR", genre_ids=[35])
+    assert calls[-1].url.params["with_origin_country"] == "AR"

@@ -36,7 +36,16 @@ def main() -> int:
         show("discover_movies : comédies françaises 2015+ bien notées, sur mes abonnements",
              client.discover_movies(genre_ids=[35], original_language="fr", year_from=2015,
                                     min_vote_average=7, on_my_subscriptions=True, limit=5))
-        show("search_person('Céline Sciamma')", client.search_person("Céline Sciamma", limit=2))
+        # Tes façons de choisir un film, traduites en appels d'outils :
+        adele = client.search_person("Adèle Exarchopoulos", limit=1)[0]
+        show("Adèle Exarchopoulos : rôles principaux",
+             client.get_person_filmography(adele["person_id"], role="acting", max_billing=3, limit=8))
+        dupieux = client.search_person("Quentin Dupieux", limit=1)[0]
+        show("Quentin Dupieux : films réalisés",
+             client.get_person_filmography(dupieux["person_id"], role="directing", limit=8))
+        show("Léger, argentin, pas trop long (comédie, pays AR, ≤ 110 min)",
+             client.discover_movies(genre_ids=[35], origin_country="AR", max_runtime=110,
+                                    min_vote_count=50, limit=5))
     except TMDBError as exc:
         print(f"❌ {exc}")
         return 1

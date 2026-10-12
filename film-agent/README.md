@@ -42,9 +42,10 @@ Résultat attendu : trois lignes ✅ (Anthropic, Pinecone, TMDB).
 | Fonction | Rôle |
 |---|---|
 | `search_movies` | chercher un film par son titre |
-| `discover_movies` | trouver des films par critères (genres, années, note, langue, personnes, thèmes, durée, sur mes abonnements) |
+| `discover_movies` | trouver des films par critères (genres, années, note, langue, pays, personnes, thèmes, durée, sur mes abonnements) |
 | `get_movie_details` | fiche complète : réalisation, casting, durée, langues, mots-clés |
-| `get_watch_providers` | où le voir en France : mes abonnements d'abord, puis autres plateformes, location, achat |
+| `get_watch_providers` | où le voir **chez moi** en France (streaming, VOD) : mes abonnements d'abord, puis autres plateformes, location, achat. Pas de séances de cinéma |
+| `get_person_filmography` | films réalisés par quelqu'un, ou films où quelqu'un a un rôle principal |
 | `search_person` / `search_keyword` | traduire « Sciamma » ou « voyage dans le temps » en identifiants pour `discover_movies` |
 
 ```bash
