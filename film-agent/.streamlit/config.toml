@@ -1,0 +1,6 @@
+# Réglages de l'interface Streamlit (lus automatiquement depuis film-agent/)
+[client]
+toolbarMode = "minimal"   # masque le bouton « Deploy »
+
+[theme]
+primaryColor = "#C2410C"  # orangé « salle de cinéma »

@@ -15,7 +15,7 @@ abonnements (Netflix, Canal+).
 | **3** | Boucle d'agent avec le Claude Agent SDK, outils branchés, limite de tours | Boucle d'agent |
 | 4 | Mémoire des préférences et des retours, skill « recommandation » | Mémoire, skills |
 | 5 | Hooks : aucun film hors TMDB, pas de spoiler, pas de clé dans les logs | Garde-fous |
-| 6 | Interface Streamlit avec cartes de films | Produit |
+| 6 (en avance) | Interface Streamlit avec cartes de films | Produit |
 | 7 | Jeu de cas de test et notation automatique | Evals |
 
 ## Installation
@@ -97,6 +97,22 @@ python agent.py --trace-full  # avec les paramètres complets de chaque appel d'
 
 Limites : 25 tours et 1 $ maximum par question ; aucun outil intégré de Claude Code
 (pas de terminal, de fichiers ni de web) : l'agent ne peut utiliser que nos 9 outils.
+
+## Interface web (Streamlit)
+
+⚠️ Streamlit demande **Python 3.13** : sa dépendance `pyarrow` n'existe pas encore pour 3.15
+dans une version compatible.
+
+```bash
+cd film-agent
+streamlit run app.py      # ouvre http://localhost:8501
+```
+
+| Fichier | Rôle |
+|---|---|
+| `app.py` | la page : une envie → 3 cartes (affiche, durée, où regarder, pourquoi toi, ambiance) |
+| `recommend.py` | lance l'agent avec une réponse **structurée** (JSON), écarte tout film non vérifié dans TMDB, relit les faits dans TMDB |
+| `.streamlit/config.toml` | thème de la page |
 
 ## Règles
 
