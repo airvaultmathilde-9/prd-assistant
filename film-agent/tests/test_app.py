@@ -86,8 +86,10 @@ def test_app_shows_three_cards(app, monkeypatch):
     app.text_area[0].input("Un film absurde")
     click_find(app)
     assert not app.exception
-    assert [s.value for s in app.subheader] == ["Mandibules (2020)"] * 3
-    assert any("Voici mes idées" in m.value for m in app.markdown)
+    titles = [m.value for m in app.markdown if m.value.startswith("<div class=\"film-title\">")]
+    assert len(titles) == 3 and "Mandibules" in titles[0] and '<span class="year">2020</span>' in titles[0]
+    assert any("1 h 17" in m.value for m in app.markdown)  # 77 min -> 1 h 17
+    assert not any("Voici mes idées" in m.value for m in app.markdown)  # pas d'intro avec 3 films
     assert app.text_area[0].value == "Un film absurde"  # la demande reste visible
 
 
@@ -100,3 +102,18 @@ def test_app_relays_the_agent_question(app, monkeypatch):
     assert not app.exception
     assert "Plutôt léger ou intense ?" in app.info[0].value
     assert app.text_area[0].label == "Ta réponse" and app.text_area[0].value == ""
+
+
+def test_runtime_is_shown_in_hours_and_minutes():
+    from recommend import format_runtime
+    assert [format_runtime(m) for m in (116, 120, 45, 90, None)] == ["1 h 56", "2 h", "45 min", "1 h 30", ""]
+
+
+def test_note_explains_when_fewer_than_three_films(app, monkeypatch):
+    film = Film("choix_sur", 1, "x", "y", FakeTMDB().get_movie_details(1), FakeTMDB().get_watch_providers(1))
+    monkeypatch.setattr(recommend_module, "recommend",
+                        fake_recommend(Answer("recommendations", "Un seul film disponible.", [film], "s1")))
+    app.run()
+    app.text_area[0].input("Un film")
+    click_find(app)
+    assert any("Un seul film disponible." in m.value and "note" in m.value for m in app.markdown)

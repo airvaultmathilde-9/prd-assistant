@@ -53,13 +53,24 @@ UI_INSTRUCTIONS = """
 
 # Réponse dans l'interface web
 Ta réponse finale est structurée : kind = "question" (avec la question dans message et films vide)
-ou "recommendations" (message = une phrase d'introduction, films = 3 films avec role choix_sur,
-decouverte, pari). Dans why et vibe, pas de lien ni de titre en en-tête : l'interface affiche
+ou "recommendations" (films = 3 films avec role choix_sur, decouverte, pari). Pas de phrase
+d'introduction : avec 3 films, message est vide. Avec moins de 3 films, message explique en UNE
+phrase courte pourquoi (ex. « Un seul autre film de Dupieux est disponible chez toi. »). Dans why et vibe, pas de lien ni de titre en en-tête : l'interface affiche
 elle-même le titre, l'affiche, la durée et le lien pour regarder."""
 
 LANGUAGES = {"fr": "Français", "en": "Anglais", "es": "Espagnol", "it": "Italien", "de": "Allemand",
              "ko": "Coréen", "ja": "Japonais", "zh": "Chinois", "pt": "Portugais", "da": "Danois",
              "sv": "Suédois", "no": "Norvégien", "fa": "Persan", "hi": "Hindi", "ru": "Russe"}
+
+
+def format_runtime(minutes: int | None) -> str:
+    """116 -> « 1 h 56 » : plus facile à lire qu'un nombre de minutes."""
+    if not minutes:
+        return ""
+    hours, mins = divmod(minutes, 60)
+    if not hours:
+        return f"{mins} min"
+    return f"{hours} h {mins:02d}" if mins else f"{hours} h"
 
 
 @dataclass
@@ -74,6 +85,10 @@ class Film:
     @property
     def role_label(self) -> str:
         return ROLES.get(self.role, self.role)
+
+    @property
+    def runtime_label(self) -> str:
+        return format_runtime(self.details.get("runtime_min"))
 
     @property
     def language_label(self) -> str:
