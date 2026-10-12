@@ -12,7 +12,8 @@ Les entrées existantes sont réutilisées telles quelles : relancer l'import es
 
 Le CSV est la SOURCE DE VÉRITÉ : après l'import, Pinecone contient exactement les films
 du CSV. Modifier une note ou un commentaire -> mis à jour ; supprimer une ligne -> le film
-est retiré de Pinecone. Garde-fou : si plus de la moitié de la base devait disparaître
+est retiré de Pinecone. Exception : les films ajoutés par l'agent (source="agent",
+quand je lui dis « je l'ai déjà vu ») sont conservés. Garde-fou : si plus de la moitié de la base devait disparaître
 (mauvais fichier ?), la suppression est bloquée sauf avec --allow-mass-delete.
 """
 
@@ -115,11 +116,17 @@ def main() -> int:
     if store.ensure_index():
         print(f"\nIndex « {settings.pinecone_index} » créé (AWS us-east-1, multilingual-e5-large).")
     existing = store.all_ids()
+    # Les films ajoutés par l'agent (« je l'ai déjà vu ») ne viennent pas du CSV : on les garde.
+    # (S'ils sont aussi dans le CSV, la version du CSV vient de les remplacer : ils ne comptent plus.)
+    from_agent = (store.added_by_agent(sorted(existing)) if existing else set()) - set(records)
     sent = store.upsert(list(records.values()))
     print(f"\n✅ {sent} films envoyés à Pinecone (index « {settings.pinecone_index} »).")
 
-    stale = sorted(existing - set(records))
-    if stale and len(stale) > len(existing) / 2 and not args.allow_mass_delete:
+    stale = sorted(existing - set(records) - from_agent)
+    if from_agent:
+        print(f"🤖 {len(from_agent)} film(s) ajouté(s) par l'agent conservé(s) "
+              f"(liste dans data/ajouts_agent.csv, à recopier dans ton tableur si tu veux).")
+    if stale and len(stale) > len(existing - from_agent) / 2 and not args.allow_mass_delete:
         print(f"\n⚠️  {len(stale)} films de Pinecone ne sont plus dans le CSV (plus de la moitié).")
         print("Suppression bloquée par prudence. Si c'est voulu : relance avec --allow-mass-delete")
     elif stale:
