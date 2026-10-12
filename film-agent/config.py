@@ -27,6 +27,10 @@ for candidate in (PROJECT_DIR / ".env", PROJECT_DIR.parent / ".env"):
 TMDB_LANGUAGE = "fr-FR"
 TMDB_REGION = "FR"
 
+# Mes abonnements en illimité. On compare des noms (et non des identifiants TMDB)
+# car TMDB a plusieurs variantes : « Netflix », « Netflix Standard with Ads »…
+MY_SUBSCRIPTIONS = ("Netflix", "Canal+")
+
 
 class ConfigError(RuntimeError):
     """Variable de configuration absente ou invalide."""

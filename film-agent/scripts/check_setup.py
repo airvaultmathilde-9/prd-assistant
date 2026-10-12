@@ -20,6 +20,7 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from config import TMDB_LANGUAGE, TMDB_REGION, ConfigError, get_settings, mask  # noqa: E402
+from tmdb_client import tmdb_auth  # noqa: E402
 
 TIMEOUT = 15.0
 
@@ -48,13 +49,6 @@ def check_pinecone(api_key: str, index_name: str) -> str:
     names = [idx.name for idx in Pinecone(api_key=api_key).list_indexes()]
     status = "existe déjà" if index_name in names else "sera créé en phase 2"
     return f"{len(names)} index trouvé(s) ; l'index « {index_name} » {status}"
-
-
-def tmdb_auth(api_key: str) -> tuple[dict, dict]:
-    """TMDB accepte deux formats de clé : on renvoie (headers, params) adaptés."""
-    if api_key.startswith("eyJ"):  # jeton v4 (JWT) -> en-tête Authorization
-        return {"Authorization": f"Bearer {api_key}"}, {}
-    return {}, {"api_key": api_key}  # clé v3 -> paramètre d'URL
 
 
 def check_tmdb(api_key: str) -> str:
