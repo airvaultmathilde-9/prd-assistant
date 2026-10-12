@@ -12,8 +12,8 @@ abonnements (Netflix, Canal+).
 | 0 ✅ | Structure, secrets, vérification des 3 connexions | Hygiène des secrets |
 | 1 ✅ | Fonctions TMDB : recherche, découverte par critères, détails, plateformes FR | Concevoir un outil |
 | 2 ✅ | Import de mes notes dans Pinecone + recherche sémantique | RAG |
-| **3** | Boucle d'agent avec le Claude Agent SDK, outils branchés, limite de tours | Boucle d'agent |
-| 4 | Mémoire des préférences et des retours, skill « recommandation » | Mémoire, skills |
+| 3 ✅ | Boucle d'agent avec le Claude Agent SDK, outils branchés, limite de tours | Boucle d'agent |
+| **4** | Mémoire des préférences et des retours, skill « recommandation » | Mémoire, skills |
 | 5 | Hooks : aucun film hors TMDB, pas de spoiler, pas de clé dans les logs | Garde-fous |
 | 6 (en avance) | Interface Streamlit avec cartes de films | Produit |
 | 7 | Jeu de cas de test et notation automatique | Evals |
@@ -97,6 +97,18 @@ python agent.py --trace-full  # avec les paramètres complets de chaque appel d'
 
 Limites : 25 tours et 1 $ maximum par question ; aucun outil intégré de Claude Code
 (pas de terminal, de fichiers ni de web) : l'agent ne peut utiliser que nos 9 outils.
+
+## Phase 4 : mémoire et skill
+
+| Fichier | Rôle |
+|---|---|
+| `memory.py` | la mémoire : préférences durables + retours (vu et aimé / pas envie / plus tard), dans `data/memory/memoire.json` (privé, ignoré par git) |
+| `.claude/skills/selection-3-films/SKILL.md` | la skill : méthode pour composer les 3 films et écrire sans spoiler, chargée par l'agent quand il en a besoin |
+
+- La mémoire est **ajoutée au prompt** à chaque demande : l'agent la connaît sans la chercher.
+- L'agent la **complète lui-même** (`remember_preference`, `record_feedback`) quand tu exprimes
+  une préférence durable (« je préfère la VO ») ; une envie du moment (« ce soir je veux rire ») n'est pas mémorisée.
+- Dans l'interface : boutons **Ton avis** sous chaque carte, et panneau **Ma mémoire** à gauche.
 
 ## Interface web (Streamlit)
 

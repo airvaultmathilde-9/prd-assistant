@@ -18,6 +18,7 @@ from typing import Any
 
 from claude_agent_sdk import create_sdk_mcp_server, tool
 
+from memory import STATUSES, Memory
 from ratings_store import RatingsStore
 from tmdb_client import TMDBClient, TMDBError
 
@@ -56,8 +57,9 @@ INT_LIST = {"type": "array", "items": {"type": "integer"}}
 STR_LIST = {"type": "array", "items": {"type": "string"}}
 
 
-def build_tools(tmdb: TMDBClient, ratings: RatingsStore, registry: SessionRegistry) -> list:
-    """Construit les outils, branchés sur les clients TMDB et Pinecone fournis."""
+def build_tools(tmdb: TMDBClient, ratings: RatingsStore, registry: SessionRegistry,
+                memory: Memory) -> list:
+    """Construit les outils, branchés sur TMDB, Pinecone et la mémoire fournis."""
 
     async def run(fn, *args, record: bool = False, **kwargs) -> dict:
         """Exécute fn hors de la boucle de l'agent et formate la réponse pour Claude."""
@@ -94,15 +96,58 @@ def build_tools(tmdb: TMDBClient, ratings: RatingsStore, registry: SessionRegist
 
     @tool(
         "check_already_seen",
-        "Vérifie si Mathilde a déjà vu des films (par leur tmdb_id). Renvoie sa note si vu, "
-        "null sinon. À utiliser sur les candidats AVANT de les recommander.",
+        "Vérifie, pour des films (tmdb_id), si Mathilde les a déjà vus (ses notes) et ce que dit "
+        "sa mémoire (vu_aime, pas_envie, plus_tard). À utiliser sur les candidats AVANT de les "
+        "recommander : écarte les déjà vus et les « pas envie ».",
         _schema({"tmdb_ids": INT_LIST}, ["tmdb_ids"]),
     )
     async def check_already_seen(args):
         def check(ids):
-            return {i: ({"deja_vu": True, "sa_note": note} if note is not None else {"deja_vu": False})
-                    for i, note in ratings.already_seen(ids).items()}
+            result = {}
+            for i, note in ratings.already_seen(ids).items():
+                status = memory.status_of(i)
+                entry = {"deja_vu": note is not None or status == "vu_aime"}
+                if note is not None:
+                    entry["sa_note"] = note
+                if status:
+                    entry["memoire"] = status
+                result[i] = entry
+            return result
         return await run(check, args["tmdb_ids"])
+
+    # ---------- La mémoire (phase 4) ----------
+
+    @tool(
+        "remember_preference",
+        "Mémorise une préférence DURABLE de Mathilde, qu'elle t'a exprimée clairement "
+        "(« je préfère la VO sous-titrée », « pas de films d'horreur », « jamais plus de 2h30 »). "
+        "Pas pour une envie du moment (« ce soir je veux rire ») : celle-là ne vaut que pour la demande en cours. "
+        "Formule-la en une phrase courte, à la 3e personne. Dis-lui ensuite que tu l'as retenue.",
+        _schema({"texte": {"type": "string"}}, ["texte"]),
+    )
+    async def remember_preference(args):
+        return await run(memory.add_preference, args["texte"])
+
+    @tool(
+        "forget_preference",
+        "Supprime une préférence mémorisée (par son numéro [id] affiché dans la section Mémoire), "
+        "si Mathilde dit qu'elle n'est plus vraie.",
+        _schema({"id": {"type": "integer"}}, ["id"]),
+    )
+    async def forget_preference(args):
+        return await run(lambda i: {"supprimee": memory.remove_preference(i)}, args["id"])
+
+    @tool(
+        "record_feedback",
+        "Enregistre ce que Mathilde dit d'un film dans la conversation : vu_aime (elle l'a vu et aimé), "
+        "pas_envie (ne plus le proposer), plus_tard (à garder de côté).",
+        _schema({"tmdb_id": {"type": "integer"},
+                 "statut": {"type": "string", "enum": list(STATUSES)}}, ["tmdb_id", "statut"]),
+    )
+    async def record_feedback(args):
+        title = registry.movies.get(args["tmdb_id"]) or f"film {args['tmdb_id']}"
+        return await run(lambda: memory.set_feedback(args["tmdb_id"], title, args["statut"])
+                         or {"enregistre": True, "titre": title, "statut": args["statut"]})
 
     # ---------- Le catalogue (TMDB, phase 1) ----------
 
@@ -219,7 +264,7 @@ def build_tools(tmdb: TMDBClient, ratings: RatingsStore, registry: SessionRegist
 
     return [search_my_ratings, check_already_seen, search_movie, discover_movies,
             get_movie_details, get_watch_options, search_person, get_person_filmography,
-            search_keyword]
+            search_keyword, remember_preference, forget_preference, record_feedback]
 
 
 def build_server(tools: list):

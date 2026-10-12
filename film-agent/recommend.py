@@ -17,6 +17,7 @@ from claude_agent_sdk import AssistantMessage, ResultMessage, ToolUseBlock, quer
 from agent import build_options
 from agent_tools import SessionRegistry
 from config import Settings
+from memory import Memory
 from tmdb_client import TMDBClient, TMDBError
 
 ROLES = {
@@ -96,6 +97,8 @@ def verify_and_enrich(raw_films: list[dict], registry: SessionRegistry,
     """Ne garde que les films vus dans TMDB pendant la session, et relit leurs faits dans TMDB."""
     films, rejected = [], []
     for raw in raw_films:
+        if any(f.tmdb_id == raw["tmdb_id"] for f in films):
+            continue  # le même film proposé deux fois : on ne le garde qu'une fois
         if raw["tmdb_id"] not in registry.movies:
             rejected.append(raw["tmdb_id"])
             continue
@@ -112,10 +115,11 @@ def verify_and_enrich(raw_films: list[dict], registry: SessionRegistry,
 
 async def recommend(prompt: str, settings: Settings, registry: SessionRegistry,
                     session_id: str | None = None,
-                    on_tool: Callable[[str, dict], None] | None = None) -> Answer:
+                    on_tool: Callable[[str, dict], None] | None = None,
+                    memory: Memory | None = None) -> Answer:
     """Lance l'agent sur une demande. session_id permet de continuer la conversation
     (par exemple pour répondre à sa question de clarification)."""
-    options = build_options(settings, registry)
+    options = build_options(settings, registry, memory)
     options.system_prompt += UI_INSTRUCTIONS
     options.output_format = {"type": "json_schema", "schema": OUTPUT_SCHEMA}
     options.resume = session_id

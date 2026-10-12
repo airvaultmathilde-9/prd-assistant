@@ -15,6 +15,7 @@ import streamlit as st
 
 from agent_tools import SessionRegistry
 from config import ConfigError, get_settings
+from memory import STATUSES, Memory
 from recommend import Answer, Film, recommend
 
 EXAMPLES = [
@@ -75,7 +76,7 @@ def ask(prompt: str) -> bool:
 
         try:
             answer = asyncio.run(recommend(prompt, settings, state.registry,
-                                           state.session_id, on_tool))
+                                           state.session_id, on_tool, Memory()))
         except Exception as exc:  # message court : jamais de détail technique sensible
             status.update(label="Erreur", state="error")
             st.error(f"L'agent a rencontré un problème ({type(exc).__name__}).")
@@ -88,6 +89,43 @@ def ask(prompt: str) -> bool:
     # (Impossible de le faire ici : le champ est déjà affiché. On le fait au prochain affichage.)
     state.clear_prompt = answer.kind == "question"
     return True
+
+
+def save_feedback(tmdb_id: int, title: str, key: str) -> None:
+    memory, status = Memory(), state[key]
+    if status:
+        memory.set_feedback(tmdb_id, title, status)
+    else:  # cliquer à nouveau sur l'avis choisi l'annule
+        memory.clear_feedback(tmdb_id)
+
+
+def render_memory_sidebar() -> None:
+    memory = Memory()
+    with st.sidebar:
+        st.header("🧠 Ma mémoire")
+        st.caption("L'agent relit tout ceci à chaque recherche. Tu peux aussi lui dire "
+                   "« je préfère la VO » dans une demande : il le notera ici.")
+        st.markdown('<div class="label">Préférences</div>', unsafe_allow_html=True)
+        for pref in memory.preferences:
+            left, right = st.columns([5, 1])
+            left.write(pref["texte"])
+            right.button("🗑️", key=f"pref-{pref['id']}", help="Oublier",
+                         on_click=lambda i=pref["id"]: Memory().remove_preference(i))
+        with st.form("nouvelle-preference", clear_on_submit=True, border=False):
+            new_pref = st.text_input("Ajouter une préférence", placeholder="Ex. : je préfère la VO sous-titrée",
+                                     label_visibility="collapsed")
+            if st.form_submit_button("Ajouter") and new_pref.strip():
+                memory.add_preference(new_pref)
+                st.rerun()
+        for status, label in STATUSES.items():
+            films = memory.films_with(status)
+            if films:
+                st.markdown(f'<div class="label">{label}</div>', unsafe_allow_html=True)
+                for tmdb_id, title in films:
+                    left, right = st.columns([5, 1])
+                    left.write(title)
+                    right.button("🗑️", key=f"fb-del-{tmdb_id}", help="Retirer",
+                                 on_click=lambda i=tmdb_id: Memory().clear_feedback(i))
 
 
 def render_card(film: Film) -> None:
@@ -122,6 +160,12 @@ def render_card(film: Film) -> None:
         st.markdown('<div class="label">L\'ambiance</div>', unsafe_allow_html=True)
         st.write(film.vibe)
 
+        # Retour sur le film : enregistré dans la mémoire, relu par l'agent à la prochaine demande.
+        key = f"avis-{film.tmdb_id}"
+        st.pills("Ton avis", list(STATUSES), format_func=STATUSES.get, selection_mode="single",
+                 default=Memory().status_of(film.tmdb_id), key=key,
+                 on_change=save_feedback, args=(film.tmdb_id, d.get("title") or "", key))
+
 
 def render_answer(answer: Answer) -> None:
     if answer.kind == "error":
@@ -145,6 +189,7 @@ def render_answer(answer: Answer) -> None:
 
 
 # ---------- Page ----------
+render_memory_sidebar()
 st.title("🎬 Ce soir, je regarde…")
 st.caption("Dis-moi ton envie : je cherche dans tes notes et dans le catalogue, "
            "puis je te propose un choix sûr, une découverte et un pari.")

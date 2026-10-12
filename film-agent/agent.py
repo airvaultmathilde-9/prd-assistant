@@ -28,6 +28,7 @@ from claude_agent_sdk import (
 
 from agent_tools import SessionRegistry, allowed_tool_names, build_server, build_tools
 from config import PROJECT_DIR, Settings, get_settings
+from memory import Memory
 from ratings_store import RatingsStore
 from tmdb_client import TMDBClient
 
@@ -38,20 +39,27 @@ MAX_TURNS = 25          # nombre maximal d'allers-retours (outil + réponse) par
 MAX_BUDGET_USD = 1.00   # coût maximal par question
 
 
-def build_options(settings: Settings, registry: SessionRegistry) -> ClaudeAgentOptions:
+SKILLS = ["selection-3-films"]  # dans film-agent/.claude/skills/
+
+
+def build_options(settings: Settings, registry: SessionRegistry,
+                  memory: Memory | None = None) -> ClaudeAgentOptions:
+    memory = memory or Memory()
     tools = build_tools(TMDBClient(settings.tmdb_api_key),
                         RatingsStore(settings.pinecone_api_key, settings.pinecone_index),
-                        registry)
+                        registry, memory)
     return ClaudeAgentOptions(
         model=settings.claude_model,
-        system_prompt=SYSTEM_PROMPT,
+        # Mémoire « injectée » : relue à chaque nouvelle demande, ajoutée au prompt système.
+        system_prompt=SYSTEM_PROMPT + "\n\n" + memory.as_prompt(),
         mcp_servers={"films": build_server(tools)},
-        # Aucun outil intégré de Claude Code (pas de terminal, pas de fichiers, pas de web) :
-        # l'agent ne peut faire QUE ce que nos outils permettent.
-        tools=[],
+        # Un seul outil intégré de Claude Code : « Skill », pour charger nos skills.
+        # Pas de terminal, de fichiers ni de web : l'agent ne fait QUE ce que nos outils permettent.
+        tools=["Skill"],
+        skills=SKILLS,
         allowed_tools=allowed_tool_names(tools),
-        # N'utilise pas tes réglages Claude Code personnels ni le CLAUDE.md du dépôt.
-        setting_sources=[],
+        # « project » = lire film-agent/.claude/ (nos skills), pas tes réglages Claude Code personnels.
+        setting_sources=["project"],
         cwd=str(PROJECT_DIR),
         max_turns=MAX_TURNS,
         max_budget_usd=MAX_BUDGET_USD,
