@@ -200,3 +200,32 @@ def test_discover_by_origin_country():
                           "/discover/movie": (200, {"results": []})}, calls)
     client.discover_movies(origin_country="AR", genre_ids=[35])
     assert calls[-1].url.params["with_origin_country"] == "AR"
+
+
+def test_trailer_prefers_french_official_trailer_then_falls_back_to_english():
+    calls = []
+    fr_videos = {"results": [
+        {"site": "YouTube", "key": "teaser-fr", "type": "Teaser", "official": True},
+        {"site": "Vimeo", "key": "x", "type": "Trailer", "official": True},
+        {"site": "YouTube", "key": "ba-fr", "type": "Trailer", "official": True, "name": "Bande-annonce VF"},
+    ]}
+
+    def handler(request):
+        calls.append(request.url.params["language"])
+        return httpx.Response(200, json=fr_videos if request.url.params["language"] == "fr-FR" else {"results": []})
+
+    client = TMDBClient(FAKE_KEY, http=httpx.Client(base_url=BASE_URL, transport=httpx.MockTransport(handler)))
+    assert client.get_trailer(1) == {"url": "https://www.youtube.com/watch?v=ba-fr",
+                                     "name": "Bande-annonce VF", "language": "fr"}
+    assert calls == ["fr-FR"]
+
+
+def test_trailer_english_fallback_and_none():
+    def handler(request):
+        if request.url.params["language"] == "en-US" and request.url.path.endswith("/1/videos"):
+            return httpx.Response(200, json={"results": [{"site": "YouTube", "key": "en", "type": "Trailer"}]})
+        return httpx.Response(200, json={"results": [{"site": "YouTube", "key": "bts", "type": "Behind the Scenes"}]})
+
+    client = TMDBClient(FAKE_KEY, http=httpx.Client(base_url=BASE_URL, transport=httpx.MockTransport(handler)))
+    assert client.get_trailer(1)["language"] == "en"
+    assert client.get_trailer(2) is None  # un making-of n'est pas une bande-annonce

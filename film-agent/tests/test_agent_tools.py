@@ -111,6 +111,11 @@ def test_agent_can_remember_and_forget_a_preference():
     assert Memory().preferences == []
 
 
+def test_add_seen_film_tool_reports_a_bad_note_clearly():
+    result, text = call(tools_by_name()["add_seen_film"], {"tmdb_id": 1, "note": 7})
+    assert result["is_error"] is True and "entre 0 et 5" in text
+
+
 def test_record_feedback_uses_the_title_seen_in_tmdb():
     registry = SessionRegistry({597298: "Mandibules"})
     _, data = call(tools_by_name(registry=registry)["record_feedback"],

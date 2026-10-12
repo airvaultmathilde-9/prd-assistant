@@ -272,6 +272,25 @@ class TMDBClient:
         result["best_access"] = result["options"][0]["access"] if result["options"] else None
         return result
 
+    def get_trailer(self, tmdb_id: int) -> dict | None:
+        """La bande-annonce YouTube du film : en français si possible, sinon en anglais.
+
+        Préférence : bande-annonce (Trailer) officielle > bande-annonce > teaser.
+        """
+        def best(videos: list[dict]) -> dict | None:
+            youtube = [v for v in videos if v.get("site") == "YouTube" and v.get("key")]
+            ranked = sorted(youtube, key=lambda v: (v.get("type") != "Trailer",
+                                                    not v.get("official"),
+                                                    v.get("type") != "Teaser"))
+            return ranked[0] if ranked and ranked[0].get("type") in ("Trailer", "Teaser") else None
+
+        for language in (TMDB_LANGUAGE, "en-US"):
+            video = best(self._get(f"/movie/{tmdb_id}/videos", language=language).get("results", []))
+            if video:
+                return {"url": f"https://www.youtube.com/watch?v={video['key']}",
+                        "name": video.get("name"), "language": language[:2]}
+        return None
+
     def get_person_filmography(self, person_id: int, role: str = "acting",
                                max_billing: int | None = None, limit: int = 40) -> list[dict]:
         """Filmographie d'une personne, du plus récent au plus ancien.

@@ -17,6 +17,9 @@ import streamlit as st
 from agent_tools import SessionRegistry
 from config import ConfigError, get_settings
 from memory import STATUSES, Memory
+from ratings_store import RatingsStore
+from seen_films import add_seen_film
+from tmdb_client import TMDBClient
 from recommend import Answer, Film, recommend
 
 EXAMPLES = [
@@ -157,6 +160,27 @@ def render_memory_sidebar() -> None:
                                "Retirer de cette liste")
 
 
+def render_seen_form(film: Film) -> None:
+    """« Je l'ai vu » : ajoute le film à mes notes Pinecone (le RAG apprend)."""
+    with st.popover("📝 Je l'ai vu : l'ajouter à mes notes", width="stretch"):
+        with st.form(f"vu-{film.tmdb_id}", border=False):
+            note = st.slider("Ta note sur 5", 0.0, 5.0, 4.0, 0.5)
+            comment = st.text_input("Un mot sur le film (facultatif)",
+                                    placeholder="Ex. : très drôle, mais un peu long")
+            if not st.form_submit_button("Ajouter à mes notes", type="primary", width="stretch"):
+                return
+        try:
+            settings = get_settings()
+            result = add_seen_film(TMDBClient(settings.tmdb_api_key),
+                                   RatingsStore(settings.pinecone_api_key, settings.pinecone_index),
+                                   Memory(), film.tmdb_id, note, comment)
+        except Exception as exc:  # message court, sans détail technique
+            st.error(f"Ajout impossible ({type(exc).__name__}).")
+            return
+        st.success(f"« {result['titre']} » ajouté à tes notes ({note:g}/5). "
+                   "L'agent en tiendra compte dès la prochaine recherche.")
+
+
 def render_card(film: Film) -> None:
     d, watch = film.details, film.watch
     with st.container(border=True):
@@ -171,20 +195,30 @@ def render_card(film: Film) -> None:
         meta = [", ".join(d.get("directors", [])[:2]), film.runtime_label, film.language_label]
         st.markdown(f'<div class="meta">{" · ".join(m for m in meta if m)}</div>', unsafe_allow_html=True)
 
+        if film.rating_label:
+            st.markdown(f'<div class="meta">{film.rating_label} <span title="Note du public sur TMDB">'
+                        f'(public)</span></div>', unsafe_allow_html=True)
+
         options = watch.get("options", [])
         if options:
             best = options[0]
             st.markdown(f'<div class="watch">📺 <b>{best["platform"]}</b> · '
                         f'{ACCESS_LABELS.get(best["access"], best["access"])}</div>',
                         unsafe_allow_html=True)
-            st.link_button(f"Regarder sur {best['platform']}", best["link"], width="stretch")
+        else:
+            st.markdown('<div class="watch">📺 Pas disponible à la maison en France pour l\'instant</div>',
+                        unsafe_allow_html=True)
+        # Deux boutons l'un sous l'autre (côte à côte, leurs textes étaient coupés).
+        if options:
+            st.link_button(f"▶️ Regarder sur {best['platform']}", best["link"], width="stretch")
+        if film.trailer:
+            st.link_button("🎬 Bande-annonce", film.trailer["url"], width="stretch",
+                                    help="Sur YouTube" + (" (en anglais)" if film.trailer["language"] != "fr" else ""))
+        if options:
             others = [f"{o['platform']} ({ACCESS_LABELS.get(o['access'], o['access']).lower()})"
                       for o in options[1:4]]
             if others:
                 st.caption("Aussi : " + ", ".join(others))
-        else:
-            st.markdown('<div class="watch">📺 Pas disponible à la maison en France pour l\'instant</div>',
-                        unsafe_allow_html=True)
 
         st.markdown('<div class="label">Pourquoi toi</div>', unsafe_allow_html=True)
         st.write(film.why)
@@ -196,6 +230,7 @@ def render_card(film: Film) -> None:
         st.pills("Ton avis", list(STATUSES), format_func=STATUSES.get, selection_mode="single",
                  default=Memory().status_of(film.tmdb_id), key=key,
                  on_change=save_feedback, args=(film.tmdb_id, d.get("title") or "", key))
+        render_seen_form(film)
 
 
 def render_answer(answer: Answer) -> None:

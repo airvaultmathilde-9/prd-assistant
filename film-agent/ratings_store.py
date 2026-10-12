@@ -77,6 +77,15 @@ class RatingsStore:
         """Identifiants de tous les films actuellement dans Pinecone."""
         return {item.id for page in self.index.list(namespace=NAMESPACE) for item in page.vectors}
 
+    def added_by_agent(self, ids: list[str]) -> set[str]:
+        """Parmi ces identifiants, ceux ajoutés par l'agent (source="agent"), pas par le CSV."""
+        found = set()
+        for start in range(0, len(ids), 100):
+            response = self.index.fetch(ids=ids[start:start + 100], namespace=NAMESPACE)
+            found |= {vid for vid, vec in response.vectors.items()
+                      if (vec.metadata or {}).get("source") == "agent"}
+        return found
+
     def delete(self, ids: list[str]) -> int:
         """Supprime des films de Pinecone (irréversible, mais le CSV fait foi : il suffit de réimporter)."""
         for start in range(0, len(ids), 1000):

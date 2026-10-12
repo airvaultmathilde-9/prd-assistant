@@ -20,7 +20,11 @@ APP = str(Path(__file__).resolve().parent.parent / "app.py")
 class FakeTMDB:
     def get_movie_details(self, tmdb_id):
         return {"title": "Mandibules", "year": 2020, "directors": ["Quentin Dupieux"],
-                "runtime_min": 77, "original_language": "fr", "poster_url": None}
+                "runtime_min": 77, "original_language": "fr", "poster_url": None,
+                "vote_average": 6.84, "vote_count": 1234}
+
+    def get_trailer(self, tmdb_id):
+        return {"url": "https://www.youtube.com/watch?v=abc", "name": "BA", "language": "fr"}
 
     def get_watch_providers(self, tmdb_id):
         return {"options": [{"platform": "Netflix", "access": "abonnement", "link": "https://netflix.com/x"},
@@ -135,3 +139,44 @@ def test_verify_and_enrich_cleans_texts():
     raw = [{"role": "pari", "tmdb_id": 1, "why": "Comme Mandibules.", "vibe": "Absurde. Lien : https://x.y/z"}]
     films, _ = verify_and_enrich(raw, registry, FakeTMDB())
     assert films[0].vibe == "Absurde."
+
+
+def test_seen_popover_adds_the_film_to_my_notes(app, monkeypatch):
+    import seen_films
+    calls = []
+    monkeypatch.setattr(seen_films, "add_seen_film",
+                        lambda tmdb, store, memory, tmdb_id, note, comment: calls.append((tmdb_id, note, comment))
+                        or {"titre": "Mandibules"})
+    film = Film("choix_sur", 597298, "x", "y", FakeTMDB().get_movie_details(1), FakeTMDB().get_watch_providers(1))
+    monkeypatch.setattr(recommend_module, "recommend",
+                        fake_recommend(Answer("recommendations", "", [film], "s1")))
+    app.run()
+    app.text_area[0].input("Un film")
+    click_find(app)
+    app.slider[0].set_value(4.5)
+    next(t for t in app.text_input if t.label.startswith("Un mot")).input("Hilarant")
+    next(b for b in app.button if b.label == "Ajouter à mes notes").click().run()
+    assert not app.exception
+    assert calls == [(597298, 4.5, "Hilarant")]
+    assert "ajouté à tes notes" in app.success[0].value
+
+
+def test_card_shows_trailer_button_and_public_rating(app, monkeypatch):
+    tmdb = FakeTMDB()
+    film = Film("choix_sur", 1, "x", "y", tmdb.get_movie_details(1), tmdb.get_watch_providers(1), tmdb.get_trailer(1))
+    monkeypatch.setattr(recommend_module, "recommend", fake_recommend(Answer("recommendations", "", [film], "s1")))
+    app.run()
+    app.text_area[0].input("Un film")
+    click_find(app)
+    assert not app.exception
+    assert any("⭐ 6,8/10 · 1 234 votes" in m.value for m in app.markdown)
+    # st.link_button n'a pas de lecteur dédié dans AppTest : on lit ses données brutes (proto).
+    links = {el.proto.label: el.proto.url for el in app.get("link_button")}
+    assert links == {"▶️ Regarder sur Netflix": "https://netflix.com/x",
+                     "🎬 Bande-annonce": "https://www.youtube.com/watch?v=abc"}
+
+
+def test_verify_and_enrich_gets_the_trailer():
+    films, _ = verify_and_enrich([{"role": "pari", "tmdb_id": 1, "why": "a", "vibe": "b"}],
+                                 SessionRegistry({1: "Mandibules"}), FakeTMDB())
+    assert films[0].trailer["url"].startswith("https://www.youtube.com/")

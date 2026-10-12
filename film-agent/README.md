@@ -110,6 +110,16 @@ Limites : 25 tours et 1 $ maximum par question ; aucun outil intégré de Claude
   une préférence durable (« je préfère la VO ») ; une envie du moment (« ce soir je veux rire ») n'est pas mémorisée.
 - Dans l'interface : boutons **Ton avis** sous chaque carte, et panneau **Ma mémoire** à gauche.
 
+### « Je l'ai déjà vu » : l'agent apprend
+
+Dis-le à l'agent (« j'ai déjà vu Le Daim, 4/5, très drôle ») ou clique **📝 Je l'ai vu** sous une carte :
+le film est ajouté à tes notes **dans Pinecone** (`seen_films.py`), avec ta note et ton commentaire.
+Les recherches suivantes s'en servent, comme pour les films de ton CSV.
+
+- Même identifiant que l'import (`tmdb-12345`) : pas de doublon ; si tu l'ajoutes plus tard au CSV, ta version l'emporte.
+- Marqués `source: agent` : **l'import ne les supprime jamais**.
+- Journal dans `data/ajouts_agent.csv` (mêmes colonnes que ton CSV) : à recopier dans ton tableur si tu veux.
+
 ## Interface web (Streamlit)
 
 ⚠️ Streamlit demande **Python 3.13** : sa dépendance `pyarrow` n'existe pas encore pour 3.15

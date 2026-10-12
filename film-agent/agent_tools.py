@@ -18,8 +18,9 @@ from typing import Any
 
 from claude_agent_sdk import create_sdk_mcp_server, tool
 
-from memory import STATUSES, Memory
+from memory import Memory
 from ratings_store import RatingsStore
+from seen_films import add_seen_film
 from tmdb_client import TMDBClient, TMDBError
 
 SERVER_NAME = "films"
@@ -65,7 +66,7 @@ def build_tools(tmdb: TMDBClient, ratings: RatingsStore, registry: SessionRegist
         """Exécute fn hors de la boucle de l'agent et formate la réponse pour Claude."""
         try:
             data = await asyncio.to_thread(fn, *args, **kwargs)
-        except TMDBError as exc:
+        except (TMDBError, ValueError) as exc:  # messages écrits par nous : sûrs et utiles à l'agent
             return _error(str(exc))
         except Exception as exc:  # Pinecone, réseau… : message court, sans détail sensible
             return _error(f"{type(exc).__name__} pendant l'appel")
@@ -139,10 +140,10 @@ def build_tools(tmdb: TMDBClient, ratings: RatingsStore, registry: SessionRegist
 
     @tool(
         "record_feedback",
-        "Enregistre ce que Mathilde dit d'un film dans la conversation : vu_aime (elle l'a vu et aimé), "
-        "pas_envie (ne plus le proposer), plus_tard (à garder de côté).",
+        "Enregistre ce que Mathilde dit d'un film qu'elle n'a PAS vu : pas_envie (ne plus le proposer) "
+        "ou plus_tard (à garder de côté). Pour un film qu'elle a VU, utilise add_seen_film.",
         _schema({"tmdb_id": {"type": "integer"},
-                 "statut": {"type": "string", "enum": list(STATUSES)}}, ["tmdb_id", "statut"]),
+                 "statut": {"type": "string", "enum": ["pas_envie", "plus_tard"]}}, ["tmdb_id", "statut"]),
     )
     async def record_feedback(args):
         title = registry.movies.get(args["tmdb_id"]) or f"film {args['tmdb_id']}"
@@ -169,7 +170,10 @@ def build_tools(tmdb: TMDBClient, ratings: RatingsStore, registry: SessionRegist
         "plusieurs genres = le film doit les avoir TOUS. on_my_subscriptions=true : seulement les films "
         "inclus dans Netflix ou Canal+ en France. origin_country : code ISO (FR, AR, KR, JP…). "
         "original_language : code ISO 639-1 (fr, en, ko…). person_ids / keyword_ids : obtenus avec "
-        "search_person / search_keyword. Si trop peu de résultats, retire des critères.",
+        "search_person / search_keyword. Si trop peu de résultats, retire des critères. "
+        "« Bien noté », « super critiques », « les mieux notés » : min_vote_average ≥ 7.5, "
+        "min_vote_count ≥ 500 et sort_by=vote_average.desc. Attention : ce sont les notes du PUBLIC "
+        "sur TMDB, pas des critiques de presse ; si elle parle de critiques, précise-le-lui.",
         _schema({
             "genres": STR_LIST,
             "exclude_genres": STR_LIST,
@@ -262,9 +266,28 @@ def build_tools(tmdb: TMDBClient, ratings: RatingsStore, registry: SessionRegist
     async def search_keyword(args):
         return await run(tmdb.search_keyword, args["query"])
 
+    @tool(
+        "add_seen_film",
+        "Ajoute à SES NOTES (la base consultée par search_my_ratings) un film que Mathilde dit avoir "
+        "déjà vu. Il faut sa note sur 5 (demi-points possibles) : si elle ne l'a pas donnée, "
+        "demande-la-lui d'abord (« Tu lui mettrais combien sur 5 ? »), avec un mot sur ce qu'elle "
+        "en a pensé. Le commentaire, dans ses mots, est précieux pour comprendre ses goûts. "
+        "Le tmdb_id doit venir d'un outil TMDB (search_movie si besoin).",
+        _schema({
+            "tmdb_id": {"type": "integer"},
+            "note": {"type": "number", "description": "Sa note, de 0 à 5."},
+            "commentaire": {"type": "string", "description": "Ce qu'elle en a dit, fidèlement."},
+            "annee_visionnage": {"type": "integer", "description": "Si elle la précise ; sinon cette année."},
+        }, ["tmdb_id", "note"]),
+    )
+    async def add_seen_film_tool(args):
+        return await run(add_seen_film, tmdb, ratings, memory, args["tmdb_id"], args["note"],
+                         args.get("commentaire", ""), args.get("annee_visionnage"))
+
     return [search_my_ratings, check_already_seen, search_movie, discover_movies,
             get_movie_details, get_watch_options, search_person, get_person_filmography,
-            search_keyword, remember_preference, forget_preference, record_feedback]
+            search_keyword, remember_preference, forget_preference, record_feedback,
+            add_seen_film_tool]
 
 
 def build_server(tools: list):
