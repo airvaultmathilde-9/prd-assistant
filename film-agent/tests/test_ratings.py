@@ -107,12 +107,14 @@ def test_not_found():
 
 def test_record_text_mixes_facts_and_my_opinion_and_has_no_nulls():
     details = {"directors": ["Quentin Dupieux"], "genres": ["Comédie"],
-               "cast": ["Grégoire Ludig", "David Marsais"], "original_language": "fr", "year": 2020}
+               "cast": ["Grégoire Ludig", "David Marsais"], "original_language": "fr", "year": 2020,
+               "overview": "Deux amis trouvent une mouche géante."}
     record = build_record(rating(), 597298, details)
     assert record["_id"] == "tmdb-597298"
     assert record["chunk_text"] == (
         "Mandibules (2020). Réalisation : Quentin Dupieux. Genres : Comédie. "
-        "Avec : Grégoire Ludig, David Marsais. Ma note : 4/5, j'ai aimé. Mon avis : Absurde et drôle.")
+        "Avec : Grégoire Ludig, David Marsais. Résumé : Deux amis trouvent une mouche géante. "
+        "Ma note : 4/5, j'ai aimé. Mon avis : Absurde et drôle.")
     assert record["note"] == 4.0 and record["realisation"] == ["Quentin Dupieux"]
     assert None not in record.values()
 
@@ -134,7 +136,8 @@ class FakeIndex:
 
     def search(self, **kwargs):
         self.searches.append(kwargs)
-        hit = SimpleNamespace(score=0.8123, fields={"titre": "Mandibules", "note": 4.0})
+        hit = SimpleNamespace(score=0.8123, fields={"titre": "Mandibules", "note": 4.0,
+                                                    "annee_sortie": 2020.0, "chunk_text": "…"})
         return SimpleNamespace(result=SimpleNamespace(hits=[hit]))
 
     def list(self, namespace):
@@ -159,9 +162,27 @@ def test_search_builds_note_filter_and_compact_results():
     index = FakeIndex()
     results = RatingsStore("k", "mes-films", index=index).search("absurde", top_k=3, min_note=4)
     call = index.searches[0]
-    assert call["inputs"] == {"text": "absurde"} and call["top_k"] == 3
-    assert call["filter"] == {"note": {"$gte": 4}}
-    assert results == [{"score": 0.812, "titre": "Mandibules", "note": 4.0}]
+    assert call["inputs"] == {"text": "absurde"} and call["filter"] == {"note": {"$gte": 4}}
+    # Reranking : 20 candidats, le reranker garde les 3 meilleurs en lisant chunk_text.
+    assert call["top_k"] == 20
+    assert call["rerank"] == {"model": "bge-reranker-v2-m3", "rank_fields": ["chunk_text"], "top_n": 3}
+    assert "chunk_text" in call["fields"]
+    # Année remise en entier, chunk_text retiré du résultat.
+    assert results == [{"score": 0.812, "titre": "Mandibules", "note": 4.0, "annee_sortie": 2020}]
+
+
+def test_search_falls_back_to_vector_search_when_rerank_is_refused():
+    class NoRerankIndex(FakeIndex):
+        def search(self, **kwargs):
+            if "rerank" in kwargs:
+                raise RuntimeError("reranking non disponible")
+            return super().search(**kwargs)
+
+    index = NoRerankIndex()
+    store = RatingsStore("k", "mes-films", index=index)
+    assert store.search("absurde", top_k=3)[0]["titre"] == "Mandibules"
+    assert store.rerank_enabled is False
+    assert index.searches[-1]["top_k"] == 3 and "rerank" not in index.searches[-1]
 
 
 def test_already_seen_returns_my_note_or_none():

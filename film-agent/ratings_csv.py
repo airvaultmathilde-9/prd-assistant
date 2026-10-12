@@ -174,6 +174,10 @@ def note_in_words(note: float) -> str:
     return "détesté"
 
 
+def _shorten(text: str, limit: int) -> str:
+    return text if len(text) <= limit else text[:limit].rsplit(" ", 1)[0] + "…"
+
+
 def _ascii_slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", _simplify(text)).strip("-")
 
@@ -201,6 +205,10 @@ def build_record(rating: Rating, tmdb_id: int | None, details: dict | None) -> d
         parts.append(f"Genres : {', '.join(details['genres'])}.")
     if details.get("cast"):
         parts.append(f"Avec : {', '.join(details['cast'][:4])}.")
+    if details.get("overview"):
+        # Le résumé TMDB dit DE QUOI parle le film (quête, guerre, famille…) :
+        # c'est ce qui manquait pour qu'« épique » retrouve Le Seigneur des anneaux.
+        parts.append(f"Résumé : {_shorten(details['overview'], 400)}")
     parts.append(f"Ma note : {rating.note:g}/5, j'ai {note_in_words(rating.note)}.")
     if rating.commentaire:
         parts.append(f"Mon avis : {rating.commentaire}")

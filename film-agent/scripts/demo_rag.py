@@ -36,14 +36,20 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("query", nargs="?")
     parser.add_argument("--min-note", type=float)
+    parser.add_argument("--no-rerank", action="store_true",
+                        help="recherche vectorielle seule, pour comparer avec le reranking")
     args = parser.parse_args()
 
     settings = get_settings()
     store = RatingsStore(settings.pinecone_api_key, settings.pinecone_index)
+    store.rerank_enabled = not args.no_rerank
     print(f"{store.count()} films dans l'index « {settings.pinecone_index} »")
 
     for query, min_note in ([(args.query, args.min_note)] if args.query else EXAMPLES):
         show(store, query, min_note)
+    mode = "avec reranking" if store.rerank_enabled else "recherche vectorielle seule"
+    print(f"\nMode : {mode}" + ("" if store.rerank_enabled or args.no_rerank
+                                 else " (reranking indisponible sur ce compte)"))
     return 0
 
 

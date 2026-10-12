@@ -17,6 +17,13 @@ BATCH_SIZE = 90  # Pinecone accepte au plus 96 enregistrements par envoi avec em
 # Champs renvoyés à l'agent : on laisse de côté chunk_text, qui répète tout le reste.
 RESULT_FIELDS = ["titre", "annee_sortie", "note", "avis", "commentaire", "tmdb_id",
                  "genres", "realisation", "casting", "annee_visionnage"]
+# Pinecone stocke tous les nombres en décimal (2026.0) : on remet ceux-ci en entiers.
+INTEGER_FIELDS = ("annee_sortie", "annee_visionnage", "tmdb_id")
+
+# Reranking : un 2e modèle, plus lent mais plus fin, relit les candidats trouvés
+# par la recherche vectorielle et les reclasse en lisant requête et texte ENSEMBLE.
+RERANK_MODEL = "bge-reranker-v2-m3"  # multilingue, hébergé par Pinecone
+RERANK_CANDIDATES = 20  # on ratisse large, puis le reranker garde les meilleurs
 
 
 class RatingsStoreError(Exception):
@@ -29,6 +36,7 @@ class RatingsStore:
         self._api_key = api_key
         self._index_name = index_name
         self._index = index
+        self.rerank_enabled = True  # désactivé tout seul si Pinecone le refuse (quota, plan)
 
     def _pc(self):
         from pinecone import Pinecone
@@ -84,21 +92,42 @@ class RatingsStore:
         Exemples : « comédie absurde », « film visuellement sublime »,
         « trop long », « Adèle Exarchopoulos ».
         min_note / max_note filtrent sur la note (ex. min_note=4 : ce que j'ai aimé).
-        Le score (0 à 1) dit à quel point le film ressemble à la requête.
+        Le score dit à quel point le film correspond à la requête (plus haut = mieux).
         """
         note_filter: dict[str, float] = {}
         if min_note is not None:
             note_filter["$gte"] = min_note
         if max_note is not None:
             note_filter["$lte"] = max_note
-        response = self.index.search(
-            namespace=NAMESPACE,
-            top_k=top_k,
-            inputs={"text": query},
-            filter={"note": note_filter} if note_filter else None,
-            fields=RESULT_FIELDS,
-        )
-        return [{"score": round(hit.score, 3), **dict(hit.fields)} for hit in response.result.hits]
+        params = {
+            "namespace": NAMESPACE,
+            "inputs": {"text": query},
+            "filter": {"note": note_filter} if note_filter else None,
+        }
+        response = None
+        if self.rerank_enabled:
+            try:
+                response = self.index.search(
+                    **params,
+                    top_k=max(RERANK_CANDIDATES, top_k),
+                    # Le reranker doit pouvoir lire chunk_text : on le demande en plus.
+                    fields=RESULT_FIELDS + ["chunk_text"],
+                    rerank={"model": RERANK_MODEL, "rank_fields": ["chunk_text"], "top_n": top_k},
+                )
+            except Exception:
+                # Pas de reranking disponible : on retombe sur la recherche vectorielle seule.
+                self.rerank_enabled = False
+        if response is None:
+            response = self.index.search(**params, top_k=top_k, fields=RESULT_FIELDS)
+        return [self._clean(hit) for hit in response.result.hits]
+
+    @staticmethod
+    def _clean(hit) -> dict:
+        fields = {k: v for k, v in dict(hit.fields).items() if k != "chunk_text"}
+        for key in INTEGER_FIELDS:
+            if isinstance(fields.get(key), float):
+                fields[key] = int(fields[key])
+        return {"score": round(hit.score, 3), **fields}
 
     def already_seen(self, tmdb_ids: list[int]) -> dict[int, float | None]:
         """Pour chaque film TMDB : ma note si je l'ai déjà vu, sinon None.
