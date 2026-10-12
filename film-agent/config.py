@@ -31,6 +31,21 @@ TMDB_REGION = "FR"
 # car TMDB a plusieurs variantes : « Netflix », « Netflix Standard with Ads »…
 MY_SUBSCRIPTIONS = ("Netflix", "Canal+")
 
+# Plateformes gratuites (avec ou sans pub) : proposées juste après mes abonnements.
+# TMDB les range parfois en « abonnement » : on les reconnaît donc aussi par leur nom.
+FREE_PLATFORMS = ("Arte", "France TV", "france.tv", "TF1+", "M6+", "Pluto TV")
+
+# Liens de recherche directs par plateforme ({q} = titre du film).
+# TMDB ne fournit pas de lien direct vers le film sur chaque plateforme :
+# on construit une recherche. ⚠️ Modèles à vérifier d'un clic (scripts/demo_tmdb.py).
+# Une plateforme absente d'ici reçoit le lien de la page TMDB « Où regarder ».
+PLATFORM_SEARCH_URLS = {
+    "Netflix": "https://www.netflix.com/search?q={q}",
+    "Canal+": "https://www.canalplus.com/recherche/?q={q}",
+    "Arte": "https://www.arte.tv/fr/search/?q={q}",
+    "France TV": "https://www.france.tv/recherche/?q={q}",
+}
+
 
 class ConfigError(RuntimeError):
     """Variable de configuration absente ou invalide."""

@@ -13,4 +13,5 @@ __pycache__/
 
 # Données personnelles locales de l'agent (mémoire, journaux)
 film-agent/data/memory/
+film-agent/data/*.csv
 film-agent/logs/

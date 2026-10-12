@@ -13,10 +13,17 @@ from __future__ import annotations
 
 import unicodedata
 from typing import Any
+from urllib.parse import quote_plus
 
 import httpx
 
-from config import MY_SUBSCRIPTIONS, TMDB_LANGUAGE, TMDB_REGION
+from config import (
+    FREE_PLATFORMS,
+    MY_SUBSCRIPTIONS,
+    PLATFORM_SEARCH_URLS,
+    TMDB_LANGUAGE,
+    TMDB_REGION,
+)
 
 BASE_URL = "https://api.themoviedb.org/3"
 POSTER_BASE = "https://image.tmdb.org/t/p/w342"
@@ -209,31 +216,61 @@ class TMDBClient:
         }
 
     def get_watch_providers(self, tmdb_id: int) -> dict:
-        """Où voir le film EN FRANCE, en distinguant mes abonnements du reste."""
-        data = self._get(f"/movie/{tmdb_id}/watch/providers")
-        fr = data.get("results", {}).get(TMDB_REGION)
+        """Où voir le film CHEZ MOI en France, avec un lien pour chaque option.
+
+        Les options sont triées selon ma priorité :
+          1. « abonnement »       inclus dans Netflix / Canal+ (rien à payer)
+          2. « gratuit »          Arte, france.tv… (rien à payer non plus)
+          3. « location »         à l'unité, quelques euros (prix non fourni par TMDB)
+          4. « achat »            achat numérique
+          5. « autre_abonnement » plateforme payante que je n'ai pas (pour info)
+        """
+        # Un seul appel : la fiche du film (pour le titre) + ses plateformes.
+        movie = self._get(f"/movie/{tmdb_id}", append_to_response="watch/providers")
+        title = movie.get("title") or movie.get("original_title") or ""
+        fr = movie.get("watch/providers", {}).get("results", {}).get(TMDB_REGION)
+        result = {"tmdb_id": tmdb_id, "title": title,
+                  "available_at_home_in_france": bool(fr), "options": [],
+                  # Les données de disponibilité viennent de JustWatch : TMDB demande de le citer.
+                  "source": "JustWatch"}
         if not fr:
-            return {"tmdb_id": tmdb_id, "available_in_france": False,
-                    "on_my_subscriptions": [], "other_streaming": [],
-                    "rent": [], "buy": [], "source": "JustWatch"}
+            return result
 
+        # Page TMDB « Où regarder » : toujours valide, elle liste toutes les offres.
+        watch_page = fr.get("link") or f"https://www.themoviedb.org/movie/{tmdb_id}/watch?locale=FR"
+        result["watch_page"] = watch_page
         my_ids = self.subscription_provider_ids()
+        free_names = [_normalize(n) for n in FREE_PLATFORMS]
 
-        def names(kind: str) -> list[str]:
-            return [p["provider_name"] for p in fr.get(kind, [])]
+        def access_for(provider: dict, kind: str) -> str:
+            if kind in ("rent", "buy"):
+                return {"rent": "location", "buy": "achat"}[kind]
+            if provider["provider_id"] in my_ids:
+                return "abonnement"
+            is_free = kind in ("free", "ads") or any(
+                _normalize(provider["provider_name"]).startswith(f) for f in free_names)
+            return "gratuit" if is_free else "autre_abonnement"
 
-        flatrate = fr.get("flatrate", []) + fr.get("ads", []) + fr.get("free", [])
-        return {
-            "tmdb_id": tmdb_id,
-            "available_in_france": True,
-            "on_my_subscriptions": [p["provider_name"] for p in flatrate if p["provider_id"] in my_ids],
-            "other_streaming": [p["provider_name"] for p in flatrate if p["provider_id"] not in my_ids],
-            "rent": names("rent"),
-            "buy": names("buy"),
-            "link": fr.get("link"),
-            # Les données de disponibilité viennent de JustWatch : TMDB demande de le citer.
-            "source": "JustWatch",
-        }
+        def link_for(provider_name: str) -> tuple[str, str]:
+            for platform, pattern in PLATFORM_SEARCH_URLS.items():
+                if _normalize(provider_name).startswith(_normalize(platform)):
+                    return pattern.format(q=quote_plus(title)), "recherche sur la plateforme"
+            return watch_page, "page TMDB « Où regarder »"
+
+        priority = ["abonnement", "gratuit", "location", "achat", "autre_abonnement"]
+        seen = set()
+        for kind in ("flatrate", "free", "ads", "rent", "buy"):
+            for provider in fr.get(kind, []):
+                access = access_for(provider, kind)
+                if (provider["provider_name"], access) in seen:
+                    continue
+                seen.add((provider["provider_name"], access))
+                link, link_type = link_for(provider["provider_name"])
+                result["options"].append({"platform": provider["provider_name"], "access": access,
+                                          "link": link, "link_type": link_type})
+        result["options"].sort(key=lambda o: priority.index(o["access"]))
+        result["best_access"] = result["options"][0]["access"] if result["options"] else None
+        return result
 
     def get_person_filmography(self, person_id: int, role: str = "acting",
                                max_billing: int | None = None, limit: int = 40) -> list[dict]:

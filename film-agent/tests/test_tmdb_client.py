@@ -93,26 +93,35 @@ def test_discover_on_my_subscriptions_filters_by_netflix_and_canal_plus_only():
     assert "primary_release_date.lte" not in params  # les critères absents ne sont pas envoyés
 
 
-def test_watch_providers_separates_my_subscriptions_from_the_rest():
+def test_watch_providers_orders_options_by_my_priority_with_a_link_each():
     client = make_client({
         "/watch/providers/movie": (200, PROVIDERS_FR),
-        "/movie/194/watch/providers": (200, {"results": {"FR": {
+        "/movie/194": (200, {**AMELIE, "watch/providers": {"results": {"FR": {
             "link": "https://www.themoviedb.org/movie/194/watch?locale=FR",
-            "flatrate": [{"provider_id": 381, "provider_name": "Canal+"},
-                         {"provider_id": 337, "provider_name": "Disney Plus"}],
+            "flatrate": [{"provider_id": 337, "provider_name": "Disney Plus"},
+                         {"provider_id": 234, "provider_name": "Arte"},
+                         {"provider_id": 381, "provider_name": "Canal+"}],
             "rent": [{"provider_id": 2, "provider_name": "Apple TV"}],
-        }}}),
+            "buy": [{"provider_id": 2, "provider_name": "Apple TV"}],
+        }}}}),
     })
     result = client.get_watch_providers(194)
-    assert result["on_my_subscriptions"] == ["Canal+"]
-    assert result["other_streaming"] == ["Disney Plus"]
-    assert result["rent"] == ["Apple TV"]
+    assert [(o["platform"], o["access"]) for o in result["options"]] == [
+        ("Canal+", "abonnement"), ("Arte", "gratuit"), ("Apple TV", "location"),
+        ("Apple TV", "achat"), ("Disney Plus", "autre_abonnement"),
+    ]
+    assert result["best_access"] == "abonnement"
+    canal = result["options"][0]
+    assert canal["link"].startswith("https://www.canalplus.com/") and "Am%C3%A9lie" in canal["link"]
+    # Plateforme sans modèle de lien : on renvoie la page TMDB « Où regarder ».
+    assert result["options"][2]["link"] == "https://www.themoviedb.org/movie/194/watch?locale=FR"
     assert result["source"] == "JustWatch"
 
 
-def test_watch_providers_when_not_available_in_france():
-    client = make_client({"/movie/194/watch/providers": (200, {"results": {"US": {}}})})
-    assert client.get_watch_providers(194)["available_in_france"] is False
+def test_watch_providers_when_not_available_at_home_in_france():
+    client = make_client({"/movie/194": (200, {**AMELIE, "watch/providers": {"results": {"US": {}}}})})
+    result = client.get_watch_providers(194)
+    assert result["available_at_home_in_france"] is False and result["options"] == []
 
 
 def test_details_extracts_directors_and_top_cast():
