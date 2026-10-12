@@ -117,3 +117,21 @@ def test_note_explains_when_fewer_than_three_films(app, monkeypatch):
     app.text_area[0].input("Un film")
     click_find(app)
     assert any("Un seul film disponible." in m.value and "note" in m.value for m in app.markdown)
+
+
+def test_links_are_removed_from_the_agent_texts():
+    from recommend import strip_links
+    vibe = ("Deux flics que tout oppose doivent faire équipe. Un thriller nerveux. "
+            "Lien : https://www.canalplus.com/recherche/?q=Chien+51")
+    assert strip_links(vibe) == "Deux flics que tout oppose doivent faire équipe. Un thriller nerveux."
+    why = ("Une vraie amitié féminine au centre. Lien : https://www.netflix.com/search?q=Voleuses "
+           "(inclus dans ton abonnement Netflix).")
+    assert strip_links(why) == "Une vraie amitié féminine au centre."
+    assert strip_links("Comme *Mandibules*, que tu as adoré !") == "Comme *Mandibules*, que tu as adoré !"
+
+
+def test_verify_and_enrich_cleans_texts():
+    registry = SessionRegistry({1: "Le Daim"})
+    raw = [{"role": "pari", "tmdb_id": 1, "why": "Comme Mandibules.", "vibe": "Absurde. Lien : https://x.y/z"}]
+    films, _ = verify_and_enrich(raw, registry, FakeTMDB())
+    assert films[0].vibe == "Absurde."

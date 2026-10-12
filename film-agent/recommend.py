@@ -9,6 +9,7 @@ Partage des rôles, pour la fiabilité :
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -39,8 +40,8 @@ OUTPUT_SCHEMA = {
                 "properties": {
                     "role": {"type": "string", "enum": list(ROLES)},
                     "tmdb_id": {"type": "integer"},
-                    "why": {"type": "string", "description": "Pourquoi toi : références à SES films notés."},
-                    "vibe": {"type": "string", "description": "L'ambiance, sans aucun spoiler."},
+                    "why": {"type": "string", "description": "Pourquoi toi : références à SES films notés. Aucun lien, aucune plateforme."},
+                    "vibe": {"type": "string", "description": "L'ambiance, sans aucun spoiler. Aucun lien, aucune plateforme."},
                 },
                 "required": ["role", "tmdb_id", "why", "vibe"],
             },
@@ -55,8 +56,9 @@ UI_INSTRUCTIONS = """
 Ta réponse finale est structurée : kind = "question" (avec la question dans message et films vide)
 ou "recommendations" (films = 3 films avec role choix_sur, decouverte, pari). Pas de phrase
 d'introduction : avec 3 films, message est vide. Avec moins de 3 films, message explique en UNE
-phrase courte pourquoi (ex. « Un seul autre film de Dupieux est disponible chez toi. »). Dans why et vibe, pas de lien ni de titre en en-tête : l'interface affiche
-elle-même le titre, l'affiche, la durée et le lien pour regarder."""
+phrase courte pourquoi (ex. « Un seul autre film de Dupieux est disponible chez toi. »). Dans why et vibe : AUCUN lien, AUCUNE URL, AUCUNE mention de plateforme ou d'abonnement, pas
+de titre en en-tête. Ici, la règle « toujours un lien pour regarder » est appliquée par l'interface
+elle-même : elle affiche le titre, l'affiche, la durée, la plateforme et un bouton pour regarder."""
 
 LANGUAGES = {"fr": "Français", "en": "Anglais", "es": "Espagnol", "it": "Italien", "de": "Allemand",
              "ko": "Coréen", "ja": "Japonais", "zh": "Chinois", "pt": "Portugais", "da": "Danois",
@@ -107,6 +109,21 @@ class Answer:
     turns: int = 0
 
 
+_SENTENCES = re.compile(r"(?<=[.!?…])\s+")
+_URL = re.compile(r"https?://\S+")
+
+
+def strip_links(text: str) -> str:
+    """Filet de sécurité : retire les phrases qui contiennent un lien.
+
+    L'interface affiche déjà un bouton « Regarder sur… » ; un lien dans le texte ferait doublon.
+    La consigne le demande à l'agent, mais un LLM ne la suit pas à 100 % : le code garantit.
+    """
+    kept = [s for s in _SENTENCES.split(text.strip())
+            if not _URL.search(s) and not s.lower().startswith("lien")]
+    return _URL.sub("", " ".join(kept)).strip()
+
+
 def verify_and_enrich(raw_films: list[dict], registry: SessionRegistry,
                       tmdb: TMDBClient) -> tuple[list[Film], list[int]]:
     """Ne garde que les films vus dans TMDB pendant la session, et relit leurs faits dans TMDB."""
@@ -117,7 +134,7 @@ def verify_and_enrich(raw_films: list[dict], registry: SessionRegistry,
         if raw["tmdb_id"] not in registry.movies:
             rejected.append(raw["tmdb_id"])
             continue
-        film = Film(raw["role"], raw["tmdb_id"], raw["why"], raw["vibe"])
+        film = Film(raw["role"], raw["tmdb_id"], strip_links(raw["why"]), strip_links(raw["vibe"]))
         try:
             film.details = tmdb.get_movie_details(film.tmdb_id)
             film.watch = tmdb.get_watch_providers(film.tmdb_id)
