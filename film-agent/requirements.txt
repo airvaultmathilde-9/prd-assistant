@@ -1,0 +1,6 @@
+# Versions minimales testées (octobre 2026)
+python-dotenv>=1.2      # lit le fichier .env
+httpx>=0.28             # appels HTTP (TMDB, vérification Anthropic)
+pinecone>=10.0          # base vectorielle (RAG sur mes notes)
+claude-agent-sdk>=0.2   # la boucle d'agent (utilisé à partir de la phase 3)
+streamlit>=1.65         # interface web (phase 6)

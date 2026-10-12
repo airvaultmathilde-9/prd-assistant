@@ -1,0 +1,16 @@
+# Secrets : ne jamais versionner les clés d'API
+.env
+.env.*
+!.env.example
+
+# Environnements virtuels Python
+.venv/
+venv/
+
+# Fichiers générés par Python
+__pycache__/
+*.pyc
+
+# Données personnelles locales de l'agent (mémoire, journaux)
+film-agent/data/memory/
+film-agent/logs/
