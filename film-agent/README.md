@@ -10,8 +10,8 @@ abonnements (Netflix, Canal+).
 | Phase | Contenu | Concept appris |
 |---|---|---|
 | 0 ✅ | Structure, secrets, vérification des 3 connexions | Hygiène des secrets |
-| **1** | Fonctions TMDB : recherche, découverte par critères, détails, plateformes FR | Concevoir un outil |
-| 2 | Import de mes notes dans Pinecone + recherche sémantique | RAG |
+| 1 ✅ | Fonctions TMDB : recherche, découverte par critères, détails, plateformes FR | Concevoir un outil |
+| **2** | Import de mes notes dans Pinecone + recherche sémantique | RAG |
 | 3 | Boucle d'agent avec le Claude Agent SDK, outils branchés, limite de tours | Boucle d'agent |
 | 4 | Mémoire des préférences et des retours, skill « recommandation » | Mémoire, skills |
 | 5 | Hooks : aucun film hors TMDB, pas de spoiler, pas de clé dans les logs | Garde-fous |
@@ -56,6 +56,30 @@ python scripts/demo_tmdb.py "Drive"  # avec un titre de ton choix
 ```
 
 Données de disponibilité fournies par JustWatch (via TMDB).
+
+## Phase 2 : mes notes dans Pinecone (RAG)
+
+1. Dépose ton CSV dans `film-agent/data/` (ignoré par git). Colonnes attendues :
+   `titre`, `note_sur_5` (obligatoires), `annee_sortie`, `annee_visionnage`, `commentaire`.
+   Séparateur : tabulation, point-virgule ou virgule.
+2. Lance l'import :
+
+```bash
+cd film-agent
+python scripts/import_notes.py data/mes_notes.csv --dry-run   # essai, rien n'est envoyé
+python scripts/import_notes.py data/mes_notes.csv             # import réel
+python scripts/demo_rag.py                                    # requêtes d'exemple
+python scripts/demo_rag.py "un film qui fait réfléchir" --min-note 4
+```
+
+Chaque film est associé à un identifiant TMDB (✅ sûr, 🟡 probable, ⚠️ à vérifier,
+❌ introuvable). Les associations sont enregistrées dans `data/correspondances_tmdb.json` :
+tu peux y corriger un `tmdb_id` à la main, puis relancer l'import (sans doublon).
+
+| Module | Rôle |
+|---|---|
+| `ratings_csv.py` | lit le CSV, retrouve chaque film dans TMDB, écrit le texte à vectoriser |
+| `ratings_store.py` | Pinecone : création de l'index, envoi, `search` (recherche sémantique) et `already_seen` |
 
 ## Règles
 
