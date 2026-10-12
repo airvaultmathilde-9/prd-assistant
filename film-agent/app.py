@@ -10,13 +10,14 @@ d'un clic à l'autre (conversation, registre des films) vit dans st.session_stat
 from __future__ import annotations
 
 import asyncio
+from datetime import date
 from html import escape
 
 import streamlit as st
 
 from agent_tools import SessionRegistry
 from config import ConfigError, get_settings
-from memory import STATUSES, Memory
+from memory import SEEN_STATUSES, STATUSES, Memory
 from ratings_store import RatingsStore
 from seen_films import add_seen_film
 from tmdb_client import TMDBClient
@@ -75,6 +76,12 @@ state.setdefault("history", [])        # demandes de la conversation en cours
 state.setdefault("prompt", "")
 if state.pop("clear_prompt", False):
     state.prompt = ""
+# Avis à remettre dans les boutons « Ton avis » après la fenêtre « Vu » (un widget ne peut
+# être modifié qu'AVANT d'être affiché : on le fait donc ici, en haut du script).
+for _key, _value in state.pop("pill_resets", {}).items():
+    state[_key] = _value
+if "toast" in state:
+    st.toast(state.pop("toast"), icon="✅")
 
 
 def reset() -> None:
@@ -113,13 +120,19 @@ def ask(prompt: str) -> bool:
 
 def save_feedback(tmdb_id: int, title: str, key: str) -> None:
     memory, status = Memory(), state[key]
+    if status in SEEN_STATUSES:
+        # « Vu » : on ouvre la fenêtre pour compléter la fiche. Rien n'est enregistré avant
+        # validation : en attendant, le bouton revient à l'avis actuel.
+        state.seen_dialog = {"tmdb_id": tmdb_id, "title": title, "status": status, "key": key}
+        state[key] = memory.status_of(tmdb_id)
+        return
     if status:
         memory.set_feedback(tmdb_id, title, status)
     else:  # cliquer à nouveau sur l'avis choisi l'annule
         memory.clear_feedback(tmdb_id)
 
 
-SIDEBAR_ORDER = ["plus_tard", "vu_aime", "pas_envie"]  # « Plus tard » d'abord : la liste la plus utile
+SIDEBAR_ORDER = ["plus_tard", "vu_aime", "vu_pas_aime", "pas_envie"]  # « Plus tard » d'abord : la liste la plus utile
 
 
 def memory_row(text: str, key: str, on_delete, help_text: str) -> None:
@@ -160,25 +173,41 @@ def render_memory_sidebar() -> None:
                                "Retirer de cette liste")
 
 
-def render_seen_form(film: Film) -> None:
-    """« Je l'ai vu » : ajoute le film à mes notes Pinecone (le RAG apprend)."""
-    with st.popover("📝 Je l'ai vu : l'ajouter à mes notes", width="stretch"):
-        with st.form(f"vu-{film.tmdb_id}", border=False):
-            note = st.slider("Ta note sur 5", 0.0, 5.0, 4.0, 0.5)
-            comment = st.text_input("Un mot sur le film (facultatif)",
-                                    placeholder="Ex. : très drôle, mais un peu long")
-            if not st.form_submit_button("Ajouter à mes notes", type="primary", width="stretch"):
-                return
+def close_seen_dialog() -> None:
+    state.pop("seen_dialog", None)
+
+
+# on_dismiss : fermer avec la croix (ou Échap) = annuler, rien n'est enregistré.
+@st.dialog("Ajouter à mes notes", width="medium", on_dismiss=close_seen_dialog)
+def seen_dialog(info: dict) -> None:
+    """Fiche complète d'un film vu : elle rejoint mes notes Pinecone (le RAG apprend)."""
+    liked = info["status"] == "vu_aime"
+    this_year = date.today().year
+    st.markdown(f"**{escape(info['title'])}** · {STATUSES[info['status']]}")
+    note = st.slider("Ta note sur 5", 0.0, 5.0, 4.0 if liked else 2.0, 0.5, format="%.1f")
+    year = st.number_input("Vu en", min_value=1900, max_value=this_year, value=this_year, step=1)
+    comment = st.text_area("Ton commentaire",
+                           placeholder="Ce qui t'a plu ou déplu : le ton, les acteurs, le rythme…",
+                           height=110)
+    st.caption("Ces informations rejoignent tes notes : l'agent s'en servira pour comprendre tes goûts, "
+               "comme pour les films de ton CSV.")
+    cancel, save = st.columns(2)
+    if cancel.button("Annuler", width="stretch"):
+        close_seen_dialog()
+        st.rerun()
+    if save.button("Enregistrer dans mes notes", type="primary", width="stretch"):
         try:
             settings = get_settings()
-            result = add_seen_film(TMDBClient(settings.tmdb_api_key),
-                                   RatingsStore(settings.pinecone_api_key, settings.pinecone_index),
-                                   Memory(), film.tmdb_id, note, comment)
+            add_seen_film(TMDBClient(settings.tmdb_api_key),
+                          RatingsStore(settings.pinecone_api_key, settings.pinecone_index),
+                          Memory(), info["tmdb_id"], note, comment, int(year), info["status"])
         except Exception as exc:  # message court, sans détail technique
-            st.error(f"Ajout impossible ({type(exc).__name__}).")
+            st.error(f"Enregistrement impossible ({type(exc).__name__}). Réessaie dans un instant.")
             return
-        st.success(f"« {result['titre']} » ajouté à tes notes ({note:g}/5). "
-                   "L'agent en tiendra compte dès la prochaine recherche.")
+        close_seen_dialog()
+        state.pill_resets = {info["key"]: info["status"]}
+        state.toast = f"« {info['title']} » ajouté à tes notes ({note:g}/5)."
+        st.rerun()
 
 
 def render_card(film: Film) -> None:
@@ -230,7 +259,6 @@ def render_card(film: Film) -> None:
         st.pills("Ton avis", list(STATUSES), format_func=STATUSES.get, selection_mode="single",
                  default=Memory().status_of(film.tmdb_id), key=key,
                  on_change=save_feedback, args=(film.tmdb_id, d.get("title") or "", key))
-        render_seen_form(film)
 
 
 def render_answer(answer: Answer) -> None:
@@ -283,6 +311,8 @@ if submitted and prompt.strip() and ask(prompt.strip()):
 
 if state.answer:
     render_answer(state.answer)
+if "seen_dialog" in state:  # un « Vu » a été cliqué : la fenêtre reste ouverte jusqu'à validation ou annulation
+    seen_dialog(state.seen_dialog)
 
 st.divider()
 st.caption("Données films : TMDB (ce produit utilise l'API TMDB sans être approuvé ni certifié par TMDB). "

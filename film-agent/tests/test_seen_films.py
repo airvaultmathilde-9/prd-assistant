@@ -37,7 +37,7 @@ def journal(tmp_path, monkeypatch):
     return path
 
 
-def test_add_seen_film_goes_to_pinecone_journal_and_cleans_memory(tmp_path, journal):
+def test_add_seen_film_goes_to_pinecone_journal_and_memory(tmp_path, journal):
     index, memory = FakeIndex(), Memory(tmp_path / "memoire.json")
     memory.set_feedback(42, "Le Daim", "plus_tard")
     result = seen_films.add_seen_film(FakeTMDB(), RatingsStore("k", "i", index=index), memory,
@@ -47,7 +47,8 @@ def test_add_seen_film_goes_to_pinecone_journal_and_cleans_memory(tmp_path, jour
     assert record["source"] == "agent"         # l'import ne le supprimera pas
     assert record["note"] == 4.5 and "j'ai adoré" in record["chunk_text"]
     assert result["titre"] == "Le Daim"
-    assert memory.status_of(42) is None        # retiré de « Plus tard »
+    assert memory.status_of(42) == "vu_aime"   # passe de « Plus tard » à « Vu et aimé »
+    assert result["statut"] == "vu_aime" and result["annee_visionnage"] == 2026
     rows = list(csv.reader(journal.open(encoding="utf-8")))
     assert rows == [seen_films.COLUMNS, ["Le Daim", "2019", "2026", "4.5", "Absurde et sec, j'ai adoré"]]
 
@@ -62,3 +63,17 @@ def test_invalid_note_is_refused(tmp_path, journal):
 def test_store_knows_which_records_come_from_the_agent():
     index = FakeIndex({"tmdb-1": {"note": 4.0}, "tmdb-2": {"note": 3.0, "source": "agent"}})
     assert RatingsStore("k", "i", index=index).added_by_agent(["tmdb-1", "tmdb-2", "tmdb-3"]) == {"tmdb-2"}
+
+
+def test_status_follows_the_choice_or_the_note(tmp_path, journal):
+    store, memory = RatingsStore("k", "i", index=FakeIndex()), Memory(tmp_path / "m.json")
+    assert seen_films.add_seen_film(FakeTMDB(), store, memory, 1, 2)["statut"] == "vu_pas_aime"
+    assert seen_films.add_seen_film(FakeTMDB(), store, memory, 2, 3.5)["statut"] == "vu_aime"
+    # Choix explicite (bouton « Vu et pas aimé ») : il l'emporte sur la note.
+    assert seen_films.add_seen_film(FakeTMDB(), store, memory, 3, 3, status="vu_pas_aime")["statut"] == "vu_pas_aime"
+
+
+def test_impossible_viewing_year_is_refused(tmp_path, journal):
+    with pytest.raises(ValueError, match="année"):
+        seen_films.add_seen_film(FakeTMDB(), RatingsStore("k", "i", index=FakeIndex()),
+                                 Memory(tmp_path / "m.json"), 1, 4, annee_visionnage=2999)

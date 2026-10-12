@@ -17,7 +17,7 @@ import csv
 from datetime import date
 
 from config import PROJECT_DIR
-from memory import Memory
+from memory import SEEN_STATUSES, Memory
 from ratings_csv import Rating, build_record
 from ratings_store import RatingsStore
 from tmdb_client import TMDBClient
@@ -27,22 +27,31 @@ COLUMNS = ["titre", "annee_sortie", "annee_visionnage", "note_sur_5", "commentai
 
 
 def add_seen_film(tmdb: TMDBClient, store: RatingsStore, memory: Memory, tmdb_id: int,
-                  note: float, commentaire: str = "", annee_visionnage: int | None = None) -> dict:
+                  note: float, commentaire: str = "", annee_visionnage: int | None = None,
+                  status: str | None = None) -> dict:
+    """status : vu_aime ou vu_pas_aime. Par défaut, déduit de la note (≥ 3 = aimé)."""
     if not 0 <= note <= 5:
         raise ValueError("la note doit être entre 0 et 5")
+    status = status or ("vu_aime" if note >= 3 else "vu_pas_aime")
+    if status not in SEEN_STATUSES:
+        raise ValueError(f"statut inconnu pour un film vu : {status}")
+    this_year = date.today().year
+    if annee_visionnage is not None and not 1900 <= annee_visionnage <= this_year:
+        raise ValueError(f"l'année de visionnage doit être entre 1900 et {this_year}")
     details = tmdb.get_movie_details(tmdb_id)  # vérifie aussi que le film existe vraiment
     rating = Rating(titre=details["title"], annee_sortie=details.get("year"),
-                    annee_visionnage=annee_visionnage or date.today().year,
+                    annee_visionnage=annee_visionnage or this_year,
                     note=note, commentaire=commentaire.strip(), line=0)
     record = build_record(rating, tmdb_id, details)
     record["source"] = "agent"
     store.upsert([record])
     _append_to_journal(rating)
-    # Vu : il n'a plus rien à faire dans « Plus tard » ou « Pas envie ».
-    if memory.status_of(tmdb_id) in ("plus_tard", "pas_envie"):
-        memory.clear_feedback(tmdb_id)
+    # Dans la mémoire, le film passe dans « Vu et aimé » ou « Vu et pas aimé »
+    # (et sort donc de « Plus tard » ou « Pas envie »).
+    memory.set_feedback(tmdb_id, rating.titre, status)
     return {"ajoute_a_mes_notes": True, "titre": rating.titre, "annee": rating.annee_sortie,
-            "note": note, "commentaire": rating.commentaire}
+            "annee_visionnage": rating.annee_visionnage, "note": note,
+            "commentaire": rating.commentaire, "statut": status}
 
 
 def _append_to_journal(rating: Rating) -> None:

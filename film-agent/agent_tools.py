@@ -18,7 +18,7 @@ from typing import Any
 
 from claude_agent_sdk import create_sdk_mcp_server, tool
 
-from memory import Memory
+from memory import SEEN_STATUSES, Memory
 from ratings_store import RatingsStore
 from seen_films import add_seen_film
 from tmdb_client import TMDBClient, TMDBError
@@ -98,7 +98,7 @@ def build_tools(tmdb: TMDBClient, ratings: RatingsStore, registry: SessionRegist
     @tool(
         "check_already_seen",
         "Vérifie, pour des films (tmdb_id), si Mathilde les a déjà vus (ses notes) et ce que dit "
-        "sa mémoire (vu_aime, pas_envie, plus_tard). À utiliser sur les candidats AVANT de les "
+        "sa mémoire (vu_aime, vu_pas_aime, pas_envie, plus_tard). À utiliser sur les candidats AVANT de les "
         "recommander : écarte les déjà vus et les « pas envie ».",
         _schema({"tmdb_ids": INT_LIST}, ["tmdb_ids"]),
     )
@@ -107,7 +107,7 @@ def build_tools(tmdb: TMDBClient, ratings: RatingsStore, registry: SessionRegist
             result = {}
             for i, note in ratings.already_seen(ids).items():
                 status = memory.status_of(i)
-                entry = {"deja_vu": note is not None or status == "vu_aime"}
+                entry = {"deja_vu": note is not None or status in SEEN_STATUSES}
                 if note is not None:
                     entry["sa_note"] = note
                 if status:
@@ -278,11 +278,13 @@ def build_tools(tmdb: TMDBClient, ratings: RatingsStore, registry: SessionRegist
             "note": {"type": "number", "description": "Sa note, de 0 à 5."},
             "commentaire": {"type": "string", "description": "Ce qu'elle en a dit, fidèlement."},
             "annee_visionnage": {"type": "integer", "description": "Si elle la précise ; sinon cette année."},
+            "statut": {"type": "string", "enum": ["vu_aime", "vu_pas_aime"],
+                       "description": "Si elle dit clairement si elle a aimé ; sinon déduit de la note."},
         }, ["tmdb_id", "note"]),
     )
     async def add_seen_film_tool(args):
         return await run(add_seen_film, tmdb, ratings, memory, args["tmdb_id"], args["note"],
-                         args.get("commentaire", ""), args.get("annee_visionnage"))
+                         args.get("commentaire", ""), args.get("annee_visionnage"), args.get("statut"))
 
     return [search_my_ratings, check_already_seen, search_movie, discover_movies,
             get_movie_details, get_watch_options, search_person, get_person_filmography,
