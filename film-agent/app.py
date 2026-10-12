@@ -10,6 +10,7 @@ d'un clic à l'autre (conversation, registre des films) vit dans st.session_stat
 from __future__ import annotations
 
 import asyncio
+from html import escape
 
 import streamlit as st
 
@@ -31,7 +32,7 @@ st.markdown("""
 <style>
   .block-container { max-width: 1150px; padding-top: 2.5rem; }
   .role { font-size: .85rem; font-weight: 600; letter-spacing: .02em; opacity: .75; }
-  .meta { font-size: .85rem; opacity: .7; margin-top: -.6rem; }
+  .meta { font-size: .85rem; opacity: .7; margin-bottom: .4rem; }
   .label { font-size: .75rem; font-weight: 700; text-transform: uppercase;
            letter-spacing: .06em; opacity: .55; margin: .8rem 0 .1rem; }
   .watch { font-size: .9rem; margin: .4rem 0; }
@@ -41,6 +42,22 @@ st.markdown("""
   .st-key-examples button:hover { background: #FFEDD5; border-color: #9A3412; color: #7C2D12; }
   .st-key-examples button p { white-space: normal !important; overflow: visible !important;
       text-overflow: clip !important; font-weight: 600; line-height: 1.3; }
+  /* « Press Enter to submit form » masquait le texte d'exemple des champs */
+  [data-testid="InputInstructions"] { display: none; }
+  /* Cartes : badge de rôle coloré et titre bien lisible */
+  .badge { display: inline-block; font-size: .8rem; font-weight: 700; padding: .2rem .7rem;
+           border-radius: 999px; margin-bottom: .5rem; }
+  .badge-choix_sur { background: #DCFCE7; color: #166534; }
+  .badge-decouverte { background: #DBEAFE; color: #1E40AF; }
+  .badge-pari { background: #F3E8FF; color: #6B21A8; }
+  .film-title { font-size: 1.6rem; font-weight: 800; line-height: 1.15; margin: .8rem 0 .3rem; }
+  .film-title .year { font-weight: 400; opacity: .5; font-size: 1.2rem; white-space: nowrap; }
+  .note { font-size: .9rem; opacity: .75; margin-top: .8rem; }
+  /* Panneau « Ma mémoire » */
+  .mem-title { font-size: 1rem; font-weight: 700; margin-bottom: .3rem; }
+  .mem-title .count { font-size: .75rem; font-weight: 700; background: #FFEDD5; color: #9A3412;
+                      border-radius: 999px; padding: .05rem .5rem; margin-left: .3rem; vertical-align: middle; }
+  .mem-item { font-size: .92rem; line-height: 1.35; }
   /* Affiches : hauteur fixe, recadrées, pour que les infos restent visibles */
   [data-testid="stImage"] img { height: 300px; object-fit: cover; border-radius: 8px; }
 </style>
@@ -99,45 +116,59 @@ def save_feedback(tmdb_id: int, title: str, key: str) -> None:
         memory.clear_feedback(tmdb_id)
 
 
+SIDEBAR_ORDER = ["plus_tard", "vu_aime", "pas_envie"]  # « Plus tard » d'abord : la liste la plus utile
+
+
+def memory_row(text: str, key: str, on_delete, help_text: str) -> None:
+    left, right = st.columns([6, 1], vertical_alignment="center")
+    left.markdown(f'<div class="mem-item">{escape(text)}</div>', unsafe_allow_html=True)
+    right.button("🗑️", key=key, help=help_text, type="tertiary", on_click=on_delete)
+
+
 def render_memory_sidebar() -> None:
     memory = Memory()
     with st.sidebar:
         st.header("🧠 Ma mémoire")
-        st.caption("L'agent relit tout ceci à chaque recherche. Tu peux aussi lui dire "
-                   "« je préfère la VO » dans une demande : il le notera ici.")
-        st.markdown('<div class="label">Préférences</div>', unsafe_allow_html=True)
-        for pref in memory.preferences:
-            left, right = st.columns([5, 1])
-            left.write(pref["texte"])
-            right.button("🗑️", key=f"pref-{pref['id']}", help="Oublier",
-                         on_click=lambda i=pref["id"]: Memory().remove_preference(i))
-        with st.form("nouvelle-preference", clear_on_submit=True, border=False):
-            new_pref = st.text_input("Ajouter une préférence", placeholder="Ex. : je préfère la VO sous-titrée",
-                                     label_visibility="collapsed")
-            if st.form_submit_button("Ajouter") and new_pref.strip():
-                memory.add_preference(new_pref)
-                st.rerun()
-        for status, label in STATUSES.items():
+        st.caption("L'agent relit tout ceci à chaque recherche. Rien ne s'efface tout seul : "
+                   "🗑️ pour retirer un élément.")
+
+        with st.container(border=True):
+            st.markdown(f'<div class="mem-title">⭐ Préférences '
+                        f'<span class="count">{len(memory.preferences)}</span></div>', unsafe_allow_html=True)
+            for pref in memory.preferences:
+                memory_row(pref["texte"], f"pref-{pref['id']}",
+                           lambda i=pref["id"]: Memory().remove_preference(i), "Oublier cette préférence")
+            with st.form("nouvelle-preference", clear_on_submit=True, border=False):
+                new_pref = st.text_input("Ajouter une préférence", placeholder="Ex. : je préfère la VO sous-titrée",
+                                         label_visibility="collapsed")
+                if st.form_submit_button("Ajouter", use_container_width=True) and new_pref.strip():
+                    memory.add_preference(new_pref)
+                    st.rerun()
+
+        for status in SIDEBAR_ORDER:
             films = memory.films_with(status)
-            if films:
-                st.markdown(f'<div class="label">{label}</div>', unsafe_allow_html=True)
+            if not films:
+                continue
+            with st.container(border=True):
+                st.markdown(f'<div class="mem-title">{STATUSES[status]} '
+                            f'<span class="count">{len(films)}</span></div>', unsafe_allow_html=True)
                 for tmdb_id, title in films:
-                    left, right = st.columns([5, 1])
-                    left.write(title)
-                    right.button("🗑️", key=f"fb-del-{tmdb_id}", help="Retirer",
-                                 on_click=lambda i=tmdb_id: Memory().clear_feedback(i))
+                    memory_row(title, f"fb-del-{tmdb_id}", lambda i=tmdb_id: Memory().clear_feedback(i),
+                               "Retirer de cette liste")
 
 
 def render_card(film: Film) -> None:
     d, watch = film.details, film.watch
     with st.container(border=True):
-        st.markdown(f'<div class="role">{film.role_label}</div>', unsafe_allow_html=True)
+        st.markdown(f'<span class="badge badge-{film.role}">{film.role_label}</span>',
+                    unsafe_allow_html=True)
         if d.get("poster_url"):
             st.image(d["poster_url"], use_container_width=True)
-        st.subheader(f"{d.get('title')} ({d.get('year') or '?'})")
-        meta = [", ".join(d.get("directors", [])[:2]),
-                f"{d['runtime_min']} min" if d.get("runtime_min") else "",
-                film.language_label]
+        # escape : un titre est du texte venu de TMDB, on ne l'injecte jamais tel quel dans du HTML.
+        year = f' <span class="year">{d["year"]}</span>' if d.get("year") else ""
+        st.markdown(f'<div class="film-title">{escape(d.get("title") or "")}{year}</div>',
+                    unsafe_allow_html=True)
+        meta = [", ".join(d.get("directors", [])[:2]), film.runtime_label, film.language_label]
         st.markdown(f'<div class="meta">{" · ".join(m for m in meta if m)}</div>', unsafe_allow_html=True)
 
         options = watch.get("options", [])
@@ -174,8 +205,6 @@ def render_answer(answer: Answer) -> None:
     if answer.kind == "question":
         st.info(f"**L'agent te demande :** {answer.message}\n\nRéponds dans la zone ci-dessus.")
         return
-    if answer.message:
-        st.markdown(f"#### {answer.message}")
     if answer.rejected:
         st.caption(f"{len(answer.rejected)} proposition(s) écartée(s) car non vérifiée(s) dans TMDB.")
     if not answer.films:
@@ -184,6 +213,8 @@ def render_answer(answer: Answer) -> None:
     for column, film in zip(st.columns(len(answer.films)), answer.films):
         with column:
             render_card(film)
+    if answer.message and len(answer.films) < 3:  # explique discrètement pourquoi moins de 3 films
+        st.markdown(f'<div class="note">ℹ️ {escape(answer.message)}</div>', unsafe_allow_html=True)
     cost = f" · {answer.cost_usd:.2f} $" if answer.cost_usd is not None else ""
     st.caption(f"{answer.turns} tours{cost}")
 
