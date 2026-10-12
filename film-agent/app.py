@@ -141,7 +141,7 @@ def render_memory_sidebar() -> None:
             with st.form("nouvelle-preference", clear_on_submit=True, border=False):
                 new_pref = st.text_input("Ajouter une préférence", placeholder="Ex. : je préfère la VO sous-titrée",
                                          label_visibility="collapsed")
-                if st.form_submit_button("Ajouter", use_container_width=True) and new_pref.strip():
+                if st.form_submit_button("Ajouter", width="stretch") and new_pref.strip():
                     memory.add_preference(new_pref)
                     st.rerun()
 
@@ -163,7 +163,7 @@ def render_card(film: Film) -> None:
         st.markdown(f'<span class="badge badge-{film.role}">{film.role_label}</span>',
                     unsafe_allow_html=True)
         if d.get("poster_url"):
-            st.image(d["poster_url"], use_container_width=True)
+            st.image(d["poster_url"], width="stretch")
         # escape : un titre est du texte venu de TMDB, on ne l'injecte jamais tel quel dans du HTML.
         year = f' <span class="year">{d["year"]}</span>' if d.get("year") else ""
         st.markdown(f'<div class="film-title">{escape(d.get("title") or "")}{year}</div>',
@@ -177,7 +177,7 @@ def render_card(film: Film) -> None:
             st.markdown(f'<div class="watch">📺 <b>{best["platform"]}</b> · '
                         f'{ACCESS_LABELS.get(best["access"], best["access"])}</div>',
                         unsafe_allow_html=True)
-            st.link_button(f"Regarder sur {best['platform']}", best["link"], use_container_width=True)
+            st.link_button(f"Regarder sur {best['platform']}", best["link"], width="stretch")
             others = [f"{o['platform']} ({ACCESS_LABELS.get(o['access'], o['access']).lower()})"
                       for o in options[1:4]]
             if others:
@@ -233,15 +233,15 @@ with st.container(key="examples"):  # key -> classe CSS « st-key-examples » po
     example_columns = st.columns(len(EXAMPLES))
 for column, example in zip(example_columns, EXAMPLES):
     # on_click : s'exécute AVANT le réaffichage, seul moment où l'on peut changer le champ texte.
-    column.button(example, use_container_width=True, on_click=state.update, args=({"prompt": example},))
+    column.button(example, width="stretch", on_click=state.update, args=({"prompt": example},))
 
 with st.form("demande", clear_on_submit=False):
     label = "Ta réponse" if state.answer and state.answer.kind == "question" else "De quoi as-tu envie ?"
     prompt = st.text_area(label, key="prompt", height=90,
                           placeholder="Ex. : un thriller coréen pas trop violent, à regarder ce soir")
     left, right = st.columns([3, 1])
-    submitted = left.form_submit_button("Trouver 3 films", type="primary", use_container_width=True)
-    right.form_submit_button("Nouvelle recherche", use_container_width=True, on_click=reset)
+    submitted = left.form_submit_button("Trouver 3 films", type="primary", width="stretch")
+    right.form_submit_button("Nouvelle recherche", width="stretch", on_click=reset)
 
 if submitted and prompt.strip() and ask(prompt.strip()):
     st.rerun()  # réaffiche la page avec la réponse (et le bon libellé du champ)
