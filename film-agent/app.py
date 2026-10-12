@@ -195,20 +195,30 @@ def render_card(film: Film) -> None:
         meta = [", ".join(d.get("directors", [])[:2]), film.runtime_label, film.language_label]
         st.markdown(f'<div class="meta">{" · ".join(m for m in meta if m)}</div>', unsafe_allow_html=True)
 
+        if film.rating_label:
+            st.markdown(f'<div class="meta">{film.rating_label} <span title="Note du public sur TMDB">'
+                        f'(public)</span></div>', unsafe_allow_html=True)
+
         options = watch.get("options", [])
         if options:
             best = options[0]
             st.markdown(f'<div class="watch">📺 <b>{best["platform"]}</b> · '
                         f'{ACCESS_LABELS.get(best["access"], best["access"])}</div>',
                         unsafe_allow_html=True)
-            st.link_button(f"Regarder sur {best['platform']}", best["link"], width="stretch")
+        else:
+            st.markdown('<div class="watch">📺 Pas disponible à la maison en France pour l\'instant</div>',
+                        unsafe_allow_html=True)
+        # Deux boutons l'un sous l'autre (côte à côte, leurs textes étaient coupés).
+        if options:
+            st.link_button(f"▶️ Regarder sur {best['platform']}", best["link"], width="stretch")
+        if film.trailer:
+            st.link_button("🎬 Bande-annonce", film.trailer["url"], width="stretch",
+                                    help="Sur YouTube" + (" (en anglais)" if film.trailer["language"] != "fr" else ""))
+        if options:
             others = [f"{o['platform']} ({ACCESS_LABELS.get(o['access'], o['access']).lower()})"
                       for o in options[1:4]]
             if others:
                 st.caption("Aussi : " + ", ".join(others))
-        else:
-            st.markdown('<div class="watch">📺 Pas disponible à la maison en France pour l\'instant</div>',
-                        unsafe_allow_html=True)
 
         st.markdown('<div class="label">Pourquoi toi</div>', unsafe_allow_html=True)
         st.write(film.why)

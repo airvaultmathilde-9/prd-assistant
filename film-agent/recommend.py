@@ -83,10 +83,21 @@ class Film:
     vibe: str
     details: dict = field(default_factory=dict)  # faits TMDB
     watch: dict = field(default_factory=dict)    # où regarder (TMDB/JustWatch)
+    trailer: dict | None = None                  # bande-annonce YouTube (TMDB)
 
     @property
     def role_label(self) -> str:
         return ROLES.get(self.role, self.role)
+
+    @property
+    def rating_label(self) -> str:
+        """« ⭐ 7,9/10 · 11 000 votes » : la note du PUBLIC sur TMDB (pas la presse)."""
+        votes = self.details.get("vote_count") or 0
+        if votes < 20:  # trop peu de votes : la moyenne ne veut rien dire
+            return ""
+        average = f"{self.details.get('vote_average', 0):.1f}".replace(".", ",")
+        thousands = f"{votes:,}".replace(",", " ")  # 11000 -> « 11 000 »
+        return f"⭐ {average}/10 · {thousands} votes"
 
     @property
     def runtime_label(self) -> str:
@@ -141,6 +152,10 @@ def verify_and_enrich(raw_films: list[dict], registry: SessionRegistry,
         except TMDBError:
             rejected.append(film.tmdb_id)
             continue
+        try:
+            film.trailer = tmdb.get_trailer(film.tmdb_id)
+        except TMDBError:
+            film.trailer = None  # pas de bande-annonce : le film reste proposé
         films.append(film)
     return films, rejected
 

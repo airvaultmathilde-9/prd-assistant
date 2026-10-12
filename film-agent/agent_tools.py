@@ -170,7 +170,10 @@ def build_tools(tmdb: TMDBClient, ratings: RatingsStore, registry: SessionRegist
         "plusieurs genres = le film doit les avoir TOUS. on_my_subscriptions=true : seulement les films "
         "inclus dans Netflix ou Canal+ en France. origin_country : code ISO (FR, AR, KR, JP…). "
         "original_language : code ISO 639-1 (fr, en, ko…). person_ids / keyword_ids : obtenus avec "
-        "search_person / search_keyword. Si trop peu de résultats, retire des critères.",
+        "search_person / search_keyword. Si trop peu de résultats, retire des critères. "
+        "« Bien noté », « super critiques », « les mieux notés » : min_vote_average ≥ 7.5, "
+        "min_vote_count ≥ 500 et sort_by=vote_average.desc. Attention : ce sont les notes du PUBLIC "
+        "sur TMDB, pas des critiques de presse ; si elle parle de critiques, précise-le-lui.",
         _schema({
             "genres": STR_LIST,
             "exclude_genres": STR_LIST,
