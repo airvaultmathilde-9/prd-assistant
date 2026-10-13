@@ -3,4 +3,7 @@
 toolbarMode = "minimal"   # masque le bouton « Deploy »
 
 [theme]
-primaryColor = "#C2410C"  # orangé « salle de cinéma »
+primaryColor = "#FF385C"              # corail, à la Airbnb
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F7F7F7"  # champs de saisie, panneau de gauche
+textColor = "#222222"
