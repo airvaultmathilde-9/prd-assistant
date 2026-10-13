@@ -12,8 +12,8 @@ Les entrées existantes sont réutilisées telles quelles : relancer l'import es
 
 Le CSV est la SOURCE DE VÉRITÉ : après l'import, Pinecone contient exactement les films
 du CSV. Modifier une note ou un commentaire -> mis à jour ; supprimer une ligne -> le film
-est retiré de Pinecone. Exception : les films ajoutés par l'agent (source="agent",
-quand je lui dis « je l'ai déjà vu ») sont conservés. Garde-fou : si plus de la moitié de la base devait disparaître
+est retiré de Pinecone. Exception : les films ajoutés ou modifiés dans l'app (page « Mes films »)
+ou par l'agent sont gérés par l'app : le CSV ne les écrase ni ne les supprime. Garde-fou : si plus de la moitié de la base devait disparaître
 (mauvais fichier ?), la suppression est bloquée sauf avec --allow-mass-delete.
 """
 
@@ -27,7 +27,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from config import PROJECT_DIR, get_settings  # noqa: E402
 from ratings_csv import Match, build_record, match_rating, read_ratings  # noqa: E402
-from ratings_store import RatingsStore  # noqa: E402
+from ratings_store import RatingsStore, plan_sync  # noqa: E402
 from tmdb_client import TMDBClient, TMDBError  # noqa: E402
 
 MATCHES_FILE = PROJECT_DIR / "data" / "correspondances_tmdb.json"
@@ -116,17 +116,16 @@ def main() -> int:
     if store.ensure_index():
         print(f"\nIndex « {settings.pinecone_index} » créé (AWS us-east-1, multilingual-e5-large).")
     existing = store.all_ids()
-    # Les films ajoutés par l'agent (« je l'ai déjà vu ») ne viennent pas du CSV : on les garde.
-    # (S'ils sont aussi dans le CSV, la version du CSV vient de les remplacer : ils ne comptent plus.)
-    from_agent = (store.added_by_agent(sorted(existing)) if existing else set()) - set(records)
-    sent = store.upsert(list(records.values()))
+    # Les films ajoutés ou modifiés dans l'app (page « Mes films ») ou par l'agent font foi :
+    # le CSV ne les écrase pas et ne les supprime pas.
+    managed = store.managed_in_app(sorted(existing)) if existing else set()
+    to_upsert, stale = plan_sync(existing, set(records), managed)
+    sent = store.upsert([records[i] for i in sorted(to_upsert)]) if to_upsert else 0
     print(f"\n✅ {sent} films envoyés à Pinecone (index « {settings.pinecone_index} »).")
-
-    stale = sorted(existing - set(records) - from_agent)
-    if from_agent:
-        print(f"🤖 {len(from_agent)} film(s) ajouté(s) par l'agent conservé(s) "
-              f"(liste dans data/ajouts_agent.csv, à recopier dans ton tableur si tu veux).")
-    if stale and len(stale) > len(existing - from_agent) / 2 and not args.allow_mass_delete:
+    if managed:
+        print(f"📱 {len(managed)} film(s) gérés dans l'app conservés tels quels "
+              f"(l'app fait foi pour eux ; export CSV possible depuis la page « Mes films »).")
+    if stale and len(stale) > len(existing - managed) / 2 and not args.allow_mass_delete:
         print(f"\n⚠️  {len(stale)} films de Pinecone ne sont plus dans le CSV (plus de la moitié).")
         print("Suppression bloquée par prudence. Si c'est voulu : relance avec --allow-mass-delete")
     elif stale:

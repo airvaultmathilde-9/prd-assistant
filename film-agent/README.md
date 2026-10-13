@@ -27,6 +27,21 @@ Pour l'arrêter : ferme la fenêtre du Terminal.
 
 Astuce : clic droit sur le fichier → **Créer un alias**, puis glisse l'alias sur le Bureau ou dans le Dock.
 
+## Page « Mes films » : mes notes, gérées dans l'app
+
+Menu à gauche → **🎞️ Mes films** : tous les films de ta base Pinecone, avec recherche, filtre par note et tri.
+
+- **➕ Ajouter** : tu tapes un titre, tu choisis le bon film dans TMDB, puis tu donnes ta **note**, ton
+  **commentaire** et l'**année de visionnage**. Le reste (année de sortie, réalisation, genres, casting,
+  résumé) vient automatiquement de TMDB.
+- **✏️ Modifier** : note, commentaire, année de visionnage. Le texte de recherche est recalculé, donc
+  l'agent tient compte de tes modifications.
+- **🗑️ Supprimer**, et **⬇️ Exporter** en CSV pour ton tableur.
+- Aucun appel à Claude : c'est gratuit (TMDB et Pinecone seulement).
+
+**L'app fait foi** : un film ajouté ou modifié ici (ou par l'agent) n'est plus jamais écrasé ni supprimé
+par `scripts/import_notes.py`. L'import du CSV ne sert plus qu'à ajouter des films en masse.
+
 ## Garde-fous de coût
 
 Seule l'API Anthropic est payante (TMDB et Pinecone sont gratuits). Une recherche coûte d'autant plus
