@@ -18,6 +18,15 @@ abonnements (Netflix, Canal+).
 | 6 (en avance) | Interface Streamlit avec cartes de films | Produit |
 | 7 | Jeu de cas de test et notation automatique | Evals |
 
+## Lancer l'agent (au quotidien)
+
+Double-clique sur **`Lancer agent films.command`** (dans `film-agent/`, depuis le Finder).
+Il met le code à jour depuis GitHub, réinstalle les bibliothèques si la liste a changé,
+lance l'interface et ouvre le navigateur. Si l'agent tourne déjà, il ouvre simplement la page.
+Pour l'arrêter : ferme la fenêtre du Terminal.
+
+Astuce : clic droit sur le fichier → **Créer un alias**, puis glisse l'alias sur le Bureau ou dans le Dock.
+
 ## Installation
 
 ```bash
