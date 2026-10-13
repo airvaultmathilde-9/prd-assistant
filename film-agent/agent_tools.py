@@ -12,6 +12,7 @@ dans un fil séparé (asyncio.to_thread) pour ne pas bloquer la boucle de l'agen
 from __future__ import annotations
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import json
 from dataclasses import dataclass, field
 from typing import Any
@@ -37,7 +38,7 @@ class SessionRegistry:
 
     def record(self, items: list[dict] | dict) -> None:
         for item in items if isinstance(items, list) else [items]:
-            if item.get("tmdb_id"):
+            if item.get("tmdb_id") and "erreur" not in item:
                 self.movies[item["tmdb_id"]] = item.get("title") or ""
 
 
@@ -213,25 +214,36 @@ def build_tools(tmdb: TMDBClient, ratings: RatingsStore, registry: SessionRegist
             return _error(str(exc))
         return await run(tmdb.discover_movies, **kwargs, record=True)
 
+    def many(fn, ids: list[int]) -> list[dict]:
+        """Le même appel TMDB pour plusieurs films, en parallèle ; une erreur n'arrête pas les autres."""
+        def one(tmdb_id: int) -> dict:
+            try:
+                return fn(tmdb_id)
+            except TMDBError as exc:
+                return {"tmdb_id": tmdb_id, "erreur": str(exc)}
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            return list(pool.map(one, ids))
+
     @tool(
         "get_movie_details",
-        "Fiche détaillée d'un film : réalisation, casting, durée, langue originale, mots-clés, "
-        "résumé (attention : le résumé peut contenir des spoilers, ne le recopie pas). "
-        "À réserver aux finalistes.",
-        _schema({"tmdb_id": {"type": "integer"}}, ["tmdb_id"]),
+        "Fiches détaillées de films (PLUSIEURS d'un coup : passe tous tes finalistes ensemble) : "
+        "réalisation, casting, durée, langue originale, mots-clés, résumé (attention : le résumé "
+        "peut contenir des spoilers, ne le recopie pas). À réserver aux finalistes.",
+        _schema({"tmdb_ids": INT_LIST}, ["tmdb_ids"]),
     )
     async def get_movie_details(args):
-        return await run(tmdb.get_movie_details, args["tmdb_id"], record=True)
+        return await run(many, tmdb.get_movie_details, args["tmdb_ids"], record=True)
 
     @tool(
         "get_watch_options",
-        "Où regarder un film CHEZ SOI en France, avec un lien par option, triées par priorité : "
-        "abonnement (Netflix, Canal+) > gratuit (Arte, france.tv…) > location > achat > "
-        "autre_abonnement (plateforme qu'elle n'a pas). Le champ link est le lien à donner.",
-        _schema({"tmdb_id": {"type": "integer"}}, ["tmdb_id"]),
+        "Où regarder des films CHEZ SOI en France (PLUSIEURS d'un coup : passe tous tes finalistes "
+        "ensemble), avec un lien par option, triées par priorité : abonnement (Netflix, Canal+) > "
+        "gratuit (Arte, france.tv…) > location > achat > autre_abonnement (plateforme qu'elle n'a pas). "
+        "Le champ link est le lien à donner.",
+        _schema({"tmdb_ids": INT_LIST}, ["tmdb_ids"]),
     )
     async def get_watch_options(args):
-        return await run(tmdb.get_watch_providers, args["tmdb_id"], record=True)
+        return await run(many, tmdb.get_watch_providers, args["tmdb_ids"], record=True)
 
     @tool(
         "search_person",
@@ -246,16 +258,24 @@ def build_tools(tmdb: TMDBClient, ratings: RatingsStore, registry: SessionRegist
         "get_person_filmography",
         "Filmographie d'une personne, du plus récent au plus ancien. role='directing' : films "
         "qu'elle a réalisés. role='acting' : films où elle joue ; max_billing=3 ne garde que les "
-        "rôles principaux (les 4 premiers noms au générique).",
+        "rôles principaux (les 4 premiers noms au générique). with_details=true ajoute à chaque film "
+        "sa durée (runtime_min) et où le voir chez elle (ou_voir, best_access) : utilise-le plutôt "
+        "que get_movie_details / get_watch_options film par film. max_runtime (minutes) et "
+        "only_at_home=true filtrent directement.",
         _schema({
             "person_id": {"type": "integer"},
             "role": {"type": "string", "enum": ["acting", "directing"]},
             "max_billing": {"type": "integer"},
+            "with_details": {"type": "boolean"},
+            "max_runtime": {"type": "integer"},
+            "only_at_home": {"type": "boolean"},
         }, ["person_id", "role"]),
     )
     async def get_person_filmography(args):
-        return await run(tmdb.get_person_filmography, args["person_id"],
-                         role=args["role"], max_billing=args.get("max_billing"), record=True)
+        return await run(tmdb.get_person_filmography, args["person_id"], role=args["role"],
+                         max_billing=args.get("max_billing"), with_details=args.get("with_details", False),
+                         max_runtime=args.get("max_runtime"), only_at_home=args.get("only_at_home", False),
+                         record=True)
 
     @tool(
         "search_keyword",

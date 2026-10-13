@@ -142,3 +142,16 @@ def test_agent_only_gets_our_tools_and_has_limits():
 def test_skill_file_exists_with_its_name():
     skill = Path(__file__).resolve().parent.parent / ".claude/skills/selection-3-films/SKILL.md"
     assert skill.read_text(encoding="utf-8").startswith("---\nname: selection-3-films\n")
+
+
+def test_watch_options_for_several_films_in_one_call():
+    class TMDB(FakeTMDB):
+        def get_watch_providers(self, tmdb_id):
+            if tmdb_id == 2:
+                raise TMDBError("film introuvable")
+            return super().get_watch_providers(tmdb_id)
+    registry = SessionRegistry()
+    _, data = call(tools_by_name(TMDB(), registry=registry)["get_watch_options"], {"tmdb_ids": [1, 2]})
+    assert data[0]["options"][0]["platform"] == "Netflix"
+    assert data[1] == {"tmdb_id": 2, "erreur": "film introuvable"}  # une erreur n'arrête pas les autres
+    assert 1 in registry.movies and 2 not in registry.movies  # pas de film non vérifié
