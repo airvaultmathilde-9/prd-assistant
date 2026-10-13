@@ -25,38 +25,44 @@ from seen_films import add_seen_film
 from tmdb_client import TMDBClient
 from recommend import Answer, Film, recommend
 
-EXAMPLES = [
-    "Un film avec Adèle Exarchopoulos en moins de deux heures",
-    "Un drame sur le thème de la Seconde Guerre mondiale",
-    "Un film de Dupieux que je n'ai pas encore vu",
-]
 ACCESS_LABELS = {"abonnement": "Inclus", "gratuit": "Gratuit", "location": "Location",
                  "achat": "Achat", "autre_abonnement": "Autre abonnement"}
 
 st.set_page_config(page_title="Ce soir, je regarde…", page_icon="🎬", layout="wide")
 st.markdown("""
 <style>
-  .block-container { max-width: 1150px; padding-top: 2.5rem; }
+  /* Style « moderne » inspiré d'Airbnb : typo Inter, cartes à ombre douce, coins arrondis, accent corail */
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  html, body, .stApp, .stMarkdown, button, input, textarea { font-family: 'Inter', -apple-system, sans-serif !important; }
+  [data-testid="stHeader"] { background: transparent; }
+  .block-container { max-width: 1120px; padding-top: 3rem; }
+  h1 { font-weight: 800 !important; letter-spacing: -.03em; }
+  button { border-radius: 999px !important; font-weight: 600 !important; }
+  [data-testid="stMain"] [data-testid="stForm"] { border: none; border-radius: 24px; padding: 1.3rem 1.5rem;
+                           box-shadow: 0 6px 28px rgba(0,0,0,.08); }
+  [data-testid="stForm"] textarea { border-radius: 16px; font-size: 1.05rem; }
+  [class*="st-key-card-"], [class*="st-key-mf-row-"] { background: #fff; border-radius: 20px;
+      padding: 1rem 1rem 1.2rem; box-shadow: 0 2px 16px rgba(0,0,0,.08); transition: transform .15s, box-shadow .15s; }
+  [class*="st-key-card-"]:hover, [class*="st-key-mf-row-"]:hover { transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(0,0,0,.12); }
+  [class*="st-key-mf-row-"] { border-radius: 16px; padding: .8rem 1.1rem; }
+  [data-testid="stSidebar"] { background: #F7F7F7; }
+  [data-testid="stSidebar"] [class*="st-key-mem-"] { background: #fff; border-color: transparent !important;
+      box-shadow: 0 1px 8px rgba(0,0,0,.05); border-radius: 14px; }
   .role { font-size: .85rem; font-weight: 600; letter-spacing: .02em; opacity: .75; }
   .meta { font-size: .85rem; opacity: .7; margin-bottom: .4rem; }
   .label { font-size: .75rem; font-weight: 700; text-transform: uppercase;
            letter-spacing: .06em; opacity: .55; margin: .8rem 0 .1rem; }
   .watch { font-size: .9rem; margin: .4rem 0; }
-  /* Boutons d'exemples : texte complet (sur plusieurs lignes), bien visibles */
-  .st-key-examples button { height: auto; min-height: 4rem; padding: .6rem 1rem;
-      border: 1.5px solid #C2410C; background: #FFF7ED; color: #9A3412; }
-  .st-key-examples button:hover { background: #FFEDD5; border-color: #9A3412; color: #7C2D12; }
-  .st-key-examples button p { white-space: normal !important; overflow: visible !important;
-      text-overflow: clip !important; font-weight: 600; line-height: 1.3; }
   /* « Press Enter to submit form » masquait le texte d'exemple des champs */
   [data-testid="InputInstructions"] { display: none; }
   /* Cartes : badge de rôle coloré et titre bien lisible */
   .badge { display: inline-block; font-size: .8rem; font-weight: 700; padding: .2rem .7rem;
            border-radius: 999px; margin-bottom: .5rem; }
-  .badge-choix_sur { background: #DCFCE7; color: #166534; }
+  .badge-choix_sur { background: #ECFDF3; color: #067647; }
   .badge-decouverte { background: #DBEAFE; color: #1E40AF; }
   .badge-pari { background: #F3E8FF; color: #6B21A8; }
-  .film-title { font-size: 1.6rem; font-weight: 800; line-height: 1.15; margin: .8rem 0 .3rem; }
+  .film-title { font-size: 1.45rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; margin: .9rem 0 .3rem; }
   .film-title .year { font-weight: 400; opacity: .5; font-size: 1.2rem; white-space: nowrap; }
   .note { font-size: .9rem; opacity: .75; margin-top: .8rem; }
   /* Page « Mes films » */
@@ -66,7 +72,7 @@ st.markdown("""
   .mf-comment { font-style: italic; font-size: .92rem; opacity: .85; margin-top: .2rem; }
   /* Panneau « Ma mémoire » */
   .mem-title { font-size: 1rem; font-weight: 700; margin-bottom: .3rem; }
-  .mem-title .count { font-size: .75rem; font-weight: 700; background: #FFEDD5; color: #9A3412;
+  .mem-title .count { font-size: .75rem; font-weight: 700; background: #FFF0F3; color: #E31C5F;
                       border-radius: 999px; padding: .05rem .5rem; margin-left: .3rem; vertical-align: middle; }
   .mem-item { font-size: .92rem; line-height: 1.35; }
   .mem-title .budget { font-weight: 600; opacity: .7; margin-left: .3rem; font-size: .9rem; }
@@ -79,7 +85,7 @@ st.markdown("""
   .st-key-mem-vu_pas_aime { border-left-color: #94A3B8 !important; }
   .st-key-mem-pas_envie { border-left-color: #DC2626 !important; }
   /* Affiches : hauteur fixe, recadrées, pour que les infos restent visibles */
-  [data-testid="stImage"] img { height: 300px; object-fit: cover; border-radius: 8px; }
+  [data-testid="stImage"] img { height: 320px; object-fit: cover; border-radius: 14px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -259,7 +265,7 @@ def seen_dialog(info: dict) -> None:
 
 def render_card(film: Film) -> None:
     d, watch = film.details, film.watch
-    with st.container(border=True):
+    with st.container(key=f"card-{film.tmdb_id}"):
         st.markdown(f'<span class="badge badge-{film.role}">{film.role_label}</span>',
                     unsafe_allow_html=True)
         if d.get("poster_url"):
@@ -339,13 +345,6 @@ def page_recommend() -> None:
 
     if state.history:
         st.caption("Conversation : " + " → ".join(f"« {h} »" for h in state.history))
-
-    with st.container(key="examples"):  # key -> classe CSS « st-key-examples » pour le style
-        st.markdown('<div class="label">Idées pour commencer</div>', unsafe_allow_html=True)
-        example_columns = st.columns(len(EXAMPLES))
-    for column, example in zip(example_columns, EXAMPLES):
-        # on_click : s'exécute AVANT le réaffichage, seul moment où l'on peut changer le champ texte.
-        column.button(example, width="stretch", on_click=state.update, args=({"prompt": example},))
 
     with st.form("demande", clear_on_submit=False):
         label = "Ta réponse" if state.answer and state.answer.kind == "question" else "De quoi as-tu envie ?"

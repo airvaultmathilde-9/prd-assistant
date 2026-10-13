@@ -197,7 +197,7 @@ def render() -> None:
     if not shown:
         st.info("Aucun film ne correspond.")
     for f in shown:
-        with st.container(border=True):
+        with st.container(key=f"mf-row-{f['id']}"):
             left, right = st.columns([9, 2], vertical_alignment="center")
             meta = [", ".join((f.get("realisation") or [])[:2]), ", ".join((f.get("genres") or [])[:3]),
                     f"vu en {f['annee_visionnage']}" if f.get("annee_visionnage") else ""]
