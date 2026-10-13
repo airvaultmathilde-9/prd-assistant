@@ -5,3 +5,4 @@ pinecone>=10.0          # base vectorielle (RAG sur mes notes)
 claude-agent-sdk>=0.2   # la boucle d'agent (utilisé à partir de la phase 3)
 streamlit>=1.65         # interface web (phase 6)
 pytest>=8               # tests automatiques
+langfuse>=4.17          # suivi et évaluation des recherches (facultatif)
