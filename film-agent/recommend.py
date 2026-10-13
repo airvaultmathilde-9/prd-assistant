@@ -1,7 +1,7 @@
 """Le moteur de l'interface : une demande -> une question OU 3 films vérifiés.
 
 Partage des rôles, pour la fiabilité :
-- Claude CHOISIT les films (par tmdb_id) et écrit « pourquoi toi » et « l'ambiance » ;
+- Claude CHOISIT les films (par tmdb_id) et écrit « pourquoi » et « l'ambiance » ;
 - les FAITS affichés (titre, affiche, durée, réalisation, lien) sont relus dans TMDB
   par notre code, jamais recopiés depuis le texte du modèle ;
 - un film absent des résultats TMDB de la session est écarté (aucun film inventé).
@@ -18,6 +18,7 @@ from claude_agent_sdk import AssistantMessage, ResultMessage, ToolUseBlock, quer
 from agent import build_options
 from agent_tools import SessionRegistry
 from config import Settings
+from costs import CostLog, DailyBudgetExceeded
 from memory import Memory
 from tmdb_client import TMDBClient, TMDBError
 
@@ -40,7 +41,7 @@ OUTPUT_SCHEMA = {
                 "properties": {
                     "role": {"type": "string", "enum": list(ROLES)},
                     "tmdb_id": {"type": "integer"},
-                    "why": {"type": "string", "description": "Pourquoi toi : références à SES films notés. Aucun lien, aucune plateforme."},
+                    "why": {"type": "string", "description": "Pourquoi ce film : références à SES films notés. Aucun lien, aucune plateforme."},
                     "vibe": {"type": "string", "description": "L'ambiance, sans aucun spoiler. Aucun lien, aucune plateforme."},
                 },
                 "required": ["role", "tmdb_id", "why", "vibe"],
@@ -166,6 +167,12 @@ async def recommend(prompt: str, settings: Settings, registry: SessionRegistry,
                     memory: Memory | None = None) -> Answer:
     """Lance l'agent sur une demande. session_id permet de continuer la conversation
     (par exemple pour répondre à sa question de clarification)."""
+    costs = CostLog()
+    try:
+        costs.check(settings.daily_budget_usd)  # garde-fou : on ne dépense plus rien au-delà du budget du jour
+    except DailyBudgetExceeded as exc:
+        return Answer("error", f"💶 {exc}", [], session_id)
+
     options = build_options(settings, registry, memory)
     options.system_prompt += UI_INSTRUCTIONS
     options.output_format = {"type": "json_schema", "schema": OUTPUT_SCHEMA}
@@ -180,10 +187,11 @@ async def recommend(prompt: str, settings: Settings, registry: SessionRegistry,
                     on_tool(block.name.rsplit("__", 1)[-1], block.input)
         elif isinstance(message, ResultMessage):
             result = message
+            costs.add(message.total_cost_usd)  # même une recherche interrompue a coûté
 
     if result is None or result.is_error or not isinstance(result.structured_output, dict):
-        reason = {"error_max_turns": "l'agent a atteint sa limite de tours",
-                  "error_max_budget_usd": "l'agent a atteint son budget"}.get(
+        reason = {"error_max_turns": "l'agent a atteint sa limite de tours (essaie une demande plus précise)",
+                  "error_max_budget_usd": "l'agent a atteint le budget de la recherche"}.get(
                       result.subtype if result else "", "l'agent n'a pas pu terminer")
         return Answer("error", f"Désolée, {reason}. Reformule ta demande ?", [],
                       result.session_id if result else session_id)

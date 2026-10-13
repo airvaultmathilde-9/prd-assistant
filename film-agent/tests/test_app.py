@@ -61,8 +61,10 @@ def test_invented_film_is_rejected_and_facts_come_from_tmdb():
 
 @pytest.fixture
 def app(monkeypatch, tmp_path):
+    import costs
     import memory
     monkeypatch.setattr(memory, "MEMORY_FILE", tmp_path / "memoire.json")
+    monkeypatch.setattr(costs, "COSTS_FILE", tmp_path / "couts.json")
     testing = pytest.importorskip("streamlit.testing.v1")
     for key in ("ANTHROPIC_API_KEY", "PINECONE_API_KEY", "TMDB_API_KEY", "CLAUDE_MODEL"):
         monkeypatch.setenv(key, "x")
@@ -205,3 +207,17 @@ def test_verify_and_enrich_gets_the_trailer():
     films, _ = verify_and_enrich([{"role": "pari", "tmdb_id": 1, "why": "a", "vibe": "b"}],
                                  SessionRegistry({1: "Mandibules"}), FakeTMDB())
     assert films[0].trailer["url"].startswith("https://www.youtube.com/")
+
+
+def test_sidebar_shows_todays_budget(app):
+    from costs import CostLog
+    CostLog().add(0.34)
+    app.run()
+    assert any("0.34 $ / 1.00 $" in m.value for m in app.sidebar.markdown)
+    assert app.get("progress")[0].proto.value == 34  # la barre est remplie à 34 %
+
+
+def test_card_label_is_pourquoi(app, monkeypatch):
+    run_with_one_card(app, monkeypatch)
+    labels = [m.value for m in app.markdown if 'class="label"' in m.value]
+    assert '<div class="label">Pourquoi</div>' in labels

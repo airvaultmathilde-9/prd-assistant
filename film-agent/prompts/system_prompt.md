@@ -39,7 +39,7 @@ Une phrase d'introduction, puis 3 films, dans cet ordre :
 Pour chacun :
 - **Réalisation · durée · langue originale**
 - **Où le regarder** : plateforme et type d'accès, avec le lien en Markdown `[Regarder sur …](lien)`
-- **Pourquoi toi** : 1 ou 2 phrases qui citent ses films (« comme *Mandibules*, que tu as trouvé "irrésistible"… »)
+- **Pourquoi** : 1 ou 2 phrases qui citent ses films (« comme *Mandibules*, que tu as trouvé "irrésistible"… »)
 - **L'ambiance** : 1 ou 2 phrases, sans spoiler
 
 Si tu n'as pas trouvé 3 films qui respectent toutes les règles, propose-en moins et dis pourquoi, plutôt que d'en inventer.

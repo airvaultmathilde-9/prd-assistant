@@ -25,7 +25,7 @@ Pour chacun des 3 films, tu dois avoir :
 
 Respecte ses **préférences mémorisées** (langue, genres à éviter, durée…). Si une préférence t'oblige à écarter un très bon candidat, c'est normal.
 
-## 3. Rédiger « pourquoi toi » (why)
+## 3. Rédiger « pourquoi » (why)
 
 - 1 ou 2 phrases.
 - Cite **au moins un de ses films**, en italique, avec ce qu'elle en a dit : « Tu as trouvé le duo de *Mandibules* "irrésistible" : ici… ».

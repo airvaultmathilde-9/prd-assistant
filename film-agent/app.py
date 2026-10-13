@@ -17,6 +17,7 @@ import streamlit as st
 
 from agent_tools import SessionRegistry
 from config import ConfigError, get_settings
+from costs import CostLog
 from memory import SEEN_STATUSES, STATUSES, Memory
 from ratings_store import RatingsStore
 from seen_films import add_seen_film
@@ -62,6 +63,15 @@ st.markdown("""
   .mem-title .count { font-size: .75rem; font-weight: 700; background: #FFEDD5; color: #9A3412;
                       border-radius: 999px; padding: .05rem .5rem; margin-left: .3rem; vertical-align: middle; }
   .mem-item { font-size: .92rem; line-height: 1.35; }
+  .mem-title .budget { font-weight: 600; opacity: .7; margin-left: .3rem; font-size: .9rem; }
+  /* Une couleur par section du panneau mémoire (bordure gauche) */
+  [class*="st-key-mem-"] { border-left-width: 5px !important; }
+  .st-key-mem-budget { border-left-color: #64748B !important; }
+  .st-key-mem-plus_tard { border-left-color: #EA580C !important; }
+  .st-key-mem-prefs { border-left-color: #7C3AED !important; }
+  .st-key-mem-vu_aime { border-left-color: #16A34A !important; }
+  .st-key-mem-vu_pas_aime { border-left-color: #94A3B8 !important; }
+  .st-key-mem-pas_envie { border-left-color: #DC2626 !important; }
   /* Affiches : hauteur fixe, recadrées, pour que les infos restent visibles */
   [data-testid="stImage"] img { height: 300px; object-fit: cover; border-radius: 8px; }
 </style>
@@ -132,7 +142,8 @@ def save_feedback(tmdb_id: int, title: str, key: str) -> None:
         memory.clear_feedback(tmdb_id)
 
 
-SIDEBAR_ORDER = ["plus_tard", "vu_aime", "vu_pas_aime", "pas_envie"]  # « Plus tard » d'abord : la liste la plus utile
+SIDEBAR_ORDER = ["plus_tard", "vu_aime", "vu_pas_aime", "pas_envie"]  # « Plus tard » d'abord : la plus utile
+VISIBLE_ITEMS = 5  # au-delà, le reste de la liste est replié
 
 
 def memory_row(text: str, key: str, on_delete, help_text: str) -> None:
@@ -141,14 +152,45 @@ def memory_row(text: str, key: str, on_delete, help_text: str) -> None:
     right.button("🗑️", key=key, help=help_text, type="tertiary", on_click=on_delete)
 
 
+def memory_section(key: str, title: str, rows: list[tuple[str, str, object, str]]) -> None:
+    """Une section colorée du panneau (la couleur vient du CSS « st-key-mem-… »)."""
+    with st.container(key=f"mem-{key}", border=True):
+        st.markdown(f'<div class="mem-title">{title} <span class="count">{len(rows)}</span></div>',
+                    unsafe_allow_html=True)
+        for row in rows[:VISIBLE_ITEMS]:
+            memory_row(*row)
+        if len(rows) > VISIBLE_ITEMS:
+            with st.expander(f"Voir les {len(rows) - VISIBLE_ITEMS} autres"):
+                for row in rows[VISIBLE_ITEMS:]:
+                    memory_row(*row)
+
+
+def render_budget(settings) -> None:
+    spent, limit = CostLog().today(), settings.daily_budget_usd
+    with st.container(key="mem-budget", border=True):
+        st.markdown(f'<div class="mem-title">💶 Aujourd\'hui <span class="budget">'
+                    f'{spent:.2f} $ / {limit:.2f} $</span></div>', unsafe_allow_html=True)
+        st.progress(min(spent / limit, 1.0) if limit else 1.0)
+        st.caption(f"Max {settings.max_turns} tours et {settings.max_budget_usd:.2f} $ par recherche. "
+                   "Réglable dans .env.")
+
+
 def render_memory_sidebar() -> None:
     memory = Memory()
     with st.sidebar:
         st.header("🧠 Ma mémoire")
-        st.caption("L'agent relit tout ceci à chaque recherche. Rien ne s'efface tout seul : "
-                   "🗑️ pour retirer un élément.")
+        try:
+            render_budget(get_settings())
+        except ConfigError:
+            pass  # l'erreur de configuration s'affiche déjà au moment de chercher
 
-        with st.container(border=True):
+        later = memory.films_with("plus_tard")
+        if later:
+            memory_section("plus_tard", STATUSES["plus_tard"],
+                           [(t, f"fb-del-{i}", lambda i=i: Memory().clear_feedback(i), "Retirer de la liste")
+                            for i, t in later])
+
+        with st.container(key="mem-prefs", border=True):
             st.markdown(f'<div class="mem-title">⭐ Préférences '
                         f'<span class="count">{len(memory.preferences)}</span></div>', unsafe_allow_html=True)
             for pref in memory.preferences:
@@ -161,16 +203,13 @@ def render_memory_sidebar() -> None:
                     memory.add_preference(new_pref)
                     st.rerun()
 
-        for status in SIDEBAR_ORDER:
+        for status in SIDEBAR_ORDER[1:]:
             films = memory.films_with(status)
-            if not films:
-                continue
-            with st.container(border=True):
-                st.markdown(f'<div class="mem-title">{STATUSES[status]} '
-                            f'<span class="count">{len(films)}</span></div>', unsafe_allow_html=True)
-                for tmdb_id, title in films:
-                    memory_row(title, f"fb-del-{tmdb_id}", lambda i=tmdb_id: Memory().clear_feedback(i),
-                               "Retirer de cette liste")
+            if films:
+                memory_section(status, STATUSES[status],
+                               [(t, f"fb-del-{i}", lambda i=i: Memory().clear_feedback(i), "Retirer de la liste")
+                                for i, t in films])
+        st.caption("L'agent relit cette mémoire à chaque recherche. Rien ne s'efface tout seul.")
 
 
 def close_seen_dialog() -> None:
@@ -249,7 +288,7 @@ def render_card(film: Film) -> None:
             if others:
                 st.caption("Aussi : " + ", ".join(others))
 
-        st.markdown('<div class="label">Pourquoi toi</div>', unsafe_allow_html=True)
+        st.markdown('<div class="label">Pourquoi</div>', unsafe_allow_html=True)
         st.write(film.why)
         st.markdown('<div class="label">L\'ambiance</div>', unsafe_allow_html=True)
         st.write(film.vibe)
