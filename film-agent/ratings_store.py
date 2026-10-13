@@ -26,6 +26,30 @@ RERANK_MODEL = "bge-reranker-v2-m3"  # multilingue, hébergé par Pinecone
 RERANK_CANDIDATES = 20  # on ratisse large, puis le reranker garde les meilleurs
 
 
+# Sources d'un film dans Pinecone : (absente) = import du CSV ; "agent" = ajouté dans la
+# conversation ; "app" = ajouté ou modifié dans la page « Mes films ».
+MANAGED_SOURCES = ("agent", "app")
+
+
+def _clean_fields(fields: dict) -> dict:
+    """Retire le texte vectorisé et remet en entiers les nombres que Pinecone stocke en décimal."""
+    cleaned = {k: v for k, v in fields.items() if k != "chunk_text"}
+    for key in INTEGER_FIELDS:
+        if isinstance(cleaned.get(key), float):
+            cleaned[key] = int(cleaned[key])
+    return cleaned
+
+
+def plan_sync(existing: set[str], csv_ids: set[str], managed: set[str]) -> tuple[set[str], list[str]]:
+    """Import du CSV : (identifiants du CSV à envoyer, identifiants à supprimer de Pinecone).
+
+    Les films gérés dans l'app ne sont ni écrasés par le CSV, ni supprimés.
+    """
+    to_upsert = csv_ids - managed
+    stale = sorted(existing - csv_ids - managed)
+    return to_upsert, stale
+
+
 class RatingsStoreError(Exception):
     """Erreur Pinecone dont le message est sûr à afficher."""
 
@@ -77,14 +101,29 @@ class RatingsStore:
         """Identifiants de tous les films actuellement dans Pinecone."""
         return {item.id for page in self.index.list(namespace=NAMESPACE) for item in page.vectors}
 
-    def added_by_agent(self, ids: list[str]) -> set[str]:
-        """Parmi ces identifiants, ceux ajoutés par l'agent (source="agent"), pas par le CSV."""
-        found = set()
+    def _fetch_metadata(self, ids: list[str]) -> dict[str, dict]:
+        """Métadonnées (titre, note, commentaire…) des films demandés, par paquets de 100."""
+        found: dict[str, dict] = {}
         for start in range(0, len(ids), 100):
             response = self.index.fetch(ids=ids[start:start + 100], namespace=NAMESPACE)
-            found |= {vid for vid, vec in response.vectors.items()
-                      if (vec.metadata or {}).get("source") == "agent"}
+            found |= {vid: dict(vec.metadata or {}) for vid, vec in response.vectors.items()}
         return found
+
+    def managed_in_app(self, ids: list[str]) -> set[str]:
+        """Parmi ces identifiants, les films ajoutés ou modifiés dans l'app ou par l'agent.
+
+        Depuis la page « Mes films », c'est l'app qui fait foi : l'import du CSV ne les
+        écrase plus et ne les supprime plus.
+        """
+        return {vid for vid, meta in self._fetch_metadata(ids).items()
+                if meta.get("source") in MANAGED_SOURCES}
+
+    def list_all(self) -> list[dict]:
+        """Tous mes films notés, avec leurs champs (sans le texte vectorisé)."""
+        films = []
+        for vid, meta in self._fetch_metadata(sorted(self.all_ids())).items():
+            films.append({"id": vid, **_clean_fields(meta)})
+        return films
 
     def delete(self, ids: list[str]) -> int:
         """Supprime des films de Pinecone (irréversible, mais le CSV fait foi : il suffit de réimporter)."""
@@ -132,11 +171,7 @@ class RatingsStore:
 
     @staticmethod
     def _clean(hit) -> dict:
-        fields = {k: v for k, v in dict(hit.fields).items() if k != "chunk_text"}
-        for key in INTEGER_FIELDS:
-            if isinstance(fields.get(key), float):
-                fields[key] = int(fields[key])
-        return {"score": round(hit.score, 3), **fields}
+        return {"score": round(hit.score, 3), **_clean_fields(dict(hit.fields))}
 
     def already_seen(self, tmdb_ids: list[int]) -> dict[int, float | None]:
         """Pour chaque film TMDB : ma note si je l'ai déjà vu, sinon None.

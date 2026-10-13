@@ -157,7 +157,8 @@ def test_seen_opens_a_dialog_and_saves_everything_to_my_notes(app, monkeypatch):
     from memory import Memory
     calls = []
 
-    def fake_add(tmdb, store, memory, tmdb_id, note, comment, year, status):
+    def fake_add(tmdb, store, memory, tmdb_id, note, comment, year, status, source="agent"):
+        assert source == "app"  # ajouté depuis l'interface
         calls.append((tmdb_id, note, comment, year, status))
         memory.set_feedback(tmdb_id, "Mandibules", status)
         return {}

@@ -19,6 +19,7 @@ from agent_tools import SessionRegistry
 from config import ConfigError, get_settings
 from costs import CostLog
 from memory import SEEN_STATUSES, STATUSES, Memory
+import my_films
 from ratings_store import RatingsStore
 from seen_films import add_seen_film
 from tmdb_client import TMDBClient
@@ -58,6 +59,11 @@ st.markdown("""
   .film-title { font-size: 1.6rem; font-weight: 800; line-height: 1.15; margin: .8rem 0 .3rem; }
   .film-title .year { font-weight: 400; opacity: .5; font-size: 1.2rem; white-space: nowrap; }
   .note { font-size: .9rem; opacity: .75; margin-top: .8rem; }
+  /* Page « Mes films » */
+  .mf-title { font-size: 1.1rem; font-weight: 700; }
+  .mf-title .year { font-weight: 400; opacity: .5; font-size: .95rem; }
+  .mf-note { font-weight: 600; font-size: .9rem; margin-left: .4rem; }
+  .mf-comment { font-style: italic; font-size: .92rem; opacity: .85; margin-top: .2rem; }
   /* Panneau « Ma mémoire » */
   .mem-title { font-size: 1rem; font-weight: 700; margin-bottom: .3rem; }
   .mem-title .count { font-size: .75rem; font-weight: 700; background: #FFEDD5; color: #9A3412;
@@ -122,6 +128,7 @@ def ask(prompt: str) -> bool:
                       state="complete", expanded=False)
     state.history.append(prompt)
     state.answer, state.session_id = answer, answer.session_id
+    state.pop("my_films", None)  # l'agent a pu ajouter un film vu : « Mes films » relira la liste
     # Si l'agent pose une question, on vide le champ pour qu'elle y réponde.
     # (Impossible de le faire ici : le champ est déjà affiché. On le fait au prochain affichage.)
     state.clear_prompt = answer.kind == "question"
@@ -239,11 +246,12 @@ def seen_dialog(info: dict) -> None:
             settings = get_settings()
             add_seen_film(TMDBClient(settings.tmdb_api_key),
                           RatingsStore(settings.pinecone_api_key, settings.pinecone_index),
-                          Memory(), info["tmdb_id"], note, comment, int(year), info["status"])
+                          Memory(), info["tmdb_id"], note, comment, int(year), info["status"], source="app")
         except Exception as exc:  # message court, sans détail technique
             st.error(f"Enregistrement impossible ({type(exc).__name__}). Réessaie dans un instant.")
             return
         close_seen_dialog()
+        state.pop("my_films", None)  # la page « Mes films » relira la liste à jour
         state.pill_resets = {info["key"]: info["status"]}
         state.toast = f"« {info['title']} » ajouté à tes notes ({note:g}/5)."
         st.rerun()
@@ -321,38 +329,47 @@ def render_answer(answer: Answer) -> None:
     st.caption(f"{answer.turns} tours{cost}")
 
 
-# ---------- Page ----------
-render_memory_sidebar()
-st.title("🎬 Ce soir, je regarde…")
-st.caption("Dis-moi ton envie : je cherche dans tes notes et dans le catalogue, "
-           "puis je te propose un choix sûr, une découverte et un pari.")
+# ---------- Les pages ----------
 
-if state.history:
-    st.caption("Conversation : " + " → ".join(f"« {h} »" for h in state.history))
+def page_recommend() -> None:
+    render_memory_sidebar()
+    st.title("🎬 Ce soir, je regarde…")
+    st.caption("Dis-moi ton envie : je cherche dans tes notes et dans le catalogue, "
+               "puis je te propose un choix sûr, une découverte et un pari.")
 
-with st.container(key="examples"):  # key -> classe CSS « st-key-examples » pour le style
-    st.markdown('<div class="label">Idées pour commencer</div>', unsafe_allow_html=True)
-    example_columns = st.columns(len(EXAMPLES))
-for column, example in zip(example_columns, EXAMPLES):
-    # on_click : s'exécute AVANT le réaffichage, seul moment où l'on peut changer le champ texte.
-    column.button(example, width="stretch", on_click=state.update, args=({"prompt": example},))
+    if state.history:
+        st.caption("Conversation : " + " → ".join(f"« {h} »" for h in state.history))
 
-with st.form("demande", clear_on_submit=False):
-    label = "Ta réponse" if state.answer and state.answer.kind == "question" else "De quoi as-tu envie ?"
-    prompt = st.text_area(label, key="prompt", height=90,
-                          placeholder="Ex. : un thriller coréen pas trop violent, à regarder ce soir")
-    left, right = st.columns([3, 1])
-    submitted = left.form_submit_button("Trouver 3 films", type="primary", width="stretch")
-    right.form_submit_button("Nouvelle recherche", width="stretch", on_click=reset)
+    with st.container(key="examples"):  # key -> classe CSS « st-key-examples » pour le style
+        st.markdown('<div class="label">Idées pour commencer</div>', unsafe_allow_html=True)
+        example_columns = st.columns(len(EXAMPLES))
+    for column, example in zip(example_columns, EXAMPLES):
+        # on_click : s'exécute AVANT le réaffichage, seul moment où l'on peut changer le champ texte.
+        column.button(example, width="stretch", on_click=state.update, args=({"prompt": example},))
 
-if submitted and prompt.strip() and ask(prompt.strip()):
-    st.rerun()  # réaffiche la page avec la réponse (et le bon libellé du champ)
+    with st.form("demande", clear_on_submit=False):
+        label = "Ta réponse" if state.answer and state.answer.kind == "question" else "De quoi as-tu envie ?"
+        prompt = st.text_area(label, key="prompt", height=90,
+                              placeholder="Ex. : un thriller coréen pas trop violent, à regarder ce soir")
+        left, right = st.columns([3, 1])
+        submitted = left.form_submit_button("Trouver 3 films", type="primary", width="stretch")
+        right.form_submit_button("Nouvelle recherche", width="stretch", on_click=reset)
 
-if state.answer:
-    render_answer(state.answer)
-if "seen_dialog" in state:  # un « Vu » a été cliqué : la fenêtre reste ouverte jusqu'à validation ou annulation
-    seen_dialog(state.seen_dialog)
+    if submitted and prompt.strip() and ask(prompt.strip()):
+        st.rerun()  # réaffiche la page avec la réponse (et le bon libellé du champ)
 
-st.divider()
-st.caption("Données films : TMDB (ce produit utilise l'API TMDB sans être approuvé ni certifié par TMDB). "
-           "Disponibilités : JustWatch.")
+    if state.answer:
+        render_answer(state.answer)
+    if "seen_dialog" in state:  # un « Vu » a été cliqué : la fenêtre reste ouverte jusqu'à validation ou annulation
+        seen_dialog(state.seen_dialog)
+
+    st.divider()
+    st.caption("Données films : TMDB (ce produit utilise l'API TMDB sans être approuvé ni certifié par TMDB). "
+               "Disponibilités : JustWatch.")
+
+
+# Deux pages, avec un menu en haut du panneau de gauche.
+st.navigation([
+    st.Page(page_recommend, title="Ce soir, je regarde…", icon="🎬", default=True),
+    st.Page(my_films.render, title="Mes films", icon="🎞️", url_path="mes-films"),
+]).run()
