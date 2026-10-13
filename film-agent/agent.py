@@ -28,6 +28,7 @@ from claude_agent_sdk import (
 
 from agent_tools import SessionRegistry, allowed_tool_names, build_server, build_tools
 from config import PROJECT_DIR, Settings, get_settings
+from costs import CostLog, DailyBudgetExceeded
 from memory import Memory
 from ratings_store import RatingsStore
 from tmdb_client import TMDBClient
@@ -35,8 +36,16 @@ from tmdb_client import TMDBClient
 SYSTEM_PROMPT = (PROJECT_DIR / "prompts" / "system_prompt.md").read_text(encoding="utf-8")
 
 # Limites : un agent a besoin de garde-fous sur ses propres boucles.
-MAX_TURNS = 25          # nombre maximal d'allers-retours (outil + réponse) par question
-MAX_BUDGET_USD = 1.00   # coût maximal par question
+# Elles viennent de .env (AGENT_MAX_TURNS, AGENT_MAX_BUDGET_USD, AGENT_DAILY_BUDGET_USD) : voir config.py.
+
+BUDGET_INSTRUCTIONS = """
+
+# Ton budget pour cette demande
+Chaque tour coûte de l'argent : tout ton contexte est relu à chaque fois.
+Tu disposes d'au plus {max_turns} tours, et tu seras coupé au-delà, sans pouvoir répondre. Donc :
+- lance en parallèle (dans le même tour) les appels qui ne dépendent pas les uns des autres ;
+- vise une réponse en 6 à 8 tours ; n'appelle get_movie_details et get_watch_options que pour tes finalistes ;
+- à {last_call} tours, arrête de chercher et réponds avec ce que tu as (moins de 3 films si besoin)."""
 
 
 SKILLS = ["selection-3-films"]  # dans film-agent/.claude/skills/
@@ -51,7 +60,9 @@ def build_options(settings: Settings, registry: SessionRegistry,
     return ClaudeAgentOptions(
         model=settings.claude_model,
         # Mémoire « injectée » : relue à chaque nouvelle demande, ajoutée au prompt système.
-        system_prompt=SYSTEM_PROMPT + "\n\n" + memory.as_prompt(),
+        system_prompt=(SYSTEM_PROMPT + BUDGET_INSTRUCTIONS.format(
+            max_turns=settings.max_turns, last_call=max(settings.max_turns - 3, 1))
+            + "\n\n" + memory.as_prompt()),
         mcp_servers={"films": build_server(tools)},
         # Un seul outil intégré de Claude Code : « Skill », pour charger nos skills.
         # Pas de terminal, de fichiers ni de web : l'agent ne fait QUE ce que nos outils permettent.
@@ -61,8 +72,8 @@ def build_options(settings: Settings, registry: SessionRegistry,
         # « project » = lire film-agent/.claude/ (nos skills), pas tes réglages Claude Code personnels.
         setting_sources=["project"],
         cwd=str(PROJECT_DIR),
-        max_turns=MAX_TURNS,
-        max_budget_usd=MAX_BUDGET_USD,
+        max_turns=settings.max_turns,
+        max_budget_usd=settings.max_budget_usd,
         env={"ANTHROPIC_API_KEY": settings.anthropic_api_key},
     )
 
@@ -108,9 +119,9 @@ def print_message(message, full_trace: bool) -> None:
     elif isinstance(message, ResultMessage):
         cost = f"{message.total_cost_usd:.3f} $" if message.total_cost_usd is not None else "?"
         if message.subtype == "error_max_turns":
-            print(f"\n⚠️  Limite de {MAX_TURNS} tours atteinte : l'agent s'est arrêté.")
+            print("\n⚠️  Limite de tours atteinte : l'agent s'est arrêté.")
         elif message.subtype == "error_max_budget_usd":
-            print(f"\n⚠️  Budget de {MAX_BUDGET_USD:.2f} $ atteint : l'agent s'est arrêté.")
+            print("\n⚠️  Budget de la recherche atteint : l'agent s'est arrêté.")
         print(f"\n   ({message.num_turns} tours · {message.duration_ms / 1000:.0f} s · coût {cost})")
 
 
@@ -128,9 +139,18 @@ async def chat(full_trace: bool) -> None:
                 break
             if not question:
                 continue
+            costs = CostLog()
+            try:
+                costs.check(settings.daily_budget_usd)
+            except DailyBudgetExceeded as exc:
+                print(f"\n💶 {exc}")
+                continue
             await client.query(question)
             async for message in client.receive_response():
                 print_message(message, full_trace)
+                if isinstance(message, ResultMessage):
+                    costs.add(message.total_cost_usd)
+                    print(f"   (aujourd'hui : {costs.today():.2f} $ sur {settings.daily_budget_usd:.2f} $)")
     print(f"\nÀ bientôt ! ({len(registry.movies)} films TMDB consultés pendant la session)")
 
 

@@ -132,7 +132,8 @@ def test_agent_only_gets_our_tools_and_has_limits():
     assert options.allowed_tools == allowed_tool_names(
         build_tools(FakeTMDB(), FakeRatings(), SessionRegistry(), Memory()))
     assert all(name.startswith("mcp__films__") for name in options.allowed_tools)
-    assert options.max_turns == 25 and options.max_budget_usd == 1.0
+    assert options.max_turns == 12 and options.max_budget_usd == 0.25  # valeurs par défaut prudentes
+    assert "au plus 12 tours" in options.system_prompt and "à 9 tours" in options.system_prompt
     assert options.model == "claude-sonnet-5-5" and options.setting_sources == ["project"]
     assert "Aucun film inventé" in options.system_prompt
     assert "# Mémoire" in options.system_prompt  # la mémoire est injectée dans le prompt

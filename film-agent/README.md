@@ -27,6 +27,22 @@ Pour l'arrêter : ferme la fenêtre du Terminal.
 
 Astuce : clic droit sur le fichier → **Créer un alias**, puis glisse l'alias sur le Bureau ou dans le Dock.
 
+## Garde-fous de coût
+
+Seule l'API Anthropic est payante (TMDB et Pinecone sont gratuits). Une recherche coûte d'autant plus
+qu'elle fait de **tours** : à chaque tour, tout le contexte (instructions, mémoire, outils, résultats déjà
+obtenus) est relu par Claude. Réglages dans `.env` (voir `.env.example`) :
+
+| Variable | Défaut | Effet |
+|---|---|---|
+| `AGENT_MAX_TURNS` | 12 | tours maximum par recherche ; l'agent connaît ce budget et conclut avant |
+| `AGENT_MAX_BUDGET_USD` | 0.25 | coût maximum d'une recherche |
+| `AGENT_DAILY_BUDGET_USD` | 1.00 | coût maximum par jour : au-delà, plus aucune recherche jusqu'au lendemain |
+| `CLAUDE_MODEL` | `claude-sonnet-5-5` | `claude-haiku-5-5` coûte nettement moins cher (choix un peu moins fins) |
+
+Le total du jour est affiché en haut du panneau « Ma mémoire » (compteur dans `data/memory/couts.json`).
+Conseil : fixe aussi une limite mensuelle sur console.anthropic.com.
+
 ## Installation
 
 ```bash
@@ -143,7 +159,7 @@ streamlit run app.py      # ouvre http://localhost:8501
 
 | Fichier | Rôle |
 |---|---|
-| `app.py` | la page : une envie → 3 cartes (affiche, durée, où regarder, pourquoi toi, ambiance) |
+| `app.py` | la page : une envie → 3 cartes (affiche, durée, où regarder, pourquoi, ambiance) |
 | `recommend.py` | lance l'agent avec une réponse **structurée** (JSON), écarte tout film non vérifié dans TMDB, relit les faits dans TMDB |
 | `.streamlit/config.toml` | thème de la page |
 

@@ -58,6 +58,10 @@ class Settings:
     tmdb_api_key: str
     claude_model: str
     pinecone_index: str
+    # Garde-fous de coût (réglables dans .env, valeurs par défaut prudentes)
+    max_turns: int = 12               # allers-retours maximum par recherche
+    max_budget_usd: float = 0.25      # coût maximum par recherche
+    daily_budget_usd: float = 1.00    # coût maximum par jour (toutes recherches confondues)
 
     def __repr__(self) -> str:
         # Garde-fou : même un print(settings) ne doit pas afficher les clés.
@@ -79,6 +83,14 @@ def _require(name: str) -> str:
     return value
 
 
+def _number(name: str, default: float) -> float:
+    raw = os.getenv(name, "").strip().replace(",", ".")
+    try:
+        return float(raw) if raw else default
+    except ValueError:
+        raise ConfigError(f"La variable {name} doit être un nombre (reçu : « {raw} »).") from None
+
+
 def get_settings() -> Settings:
     return Settings(
         anthropic_api_key=_require("ANTHROPIC_API_KEY"),
@@ -86,6 +98,9 @@ def get_settings() -> Settings:
         tmdb_api_key=_require("TMDB_API_KEY"),
         claude_model=_require("CLAUDE_MODEL"),
         pinecone_index=os.getenv("PINECONE_INDEX", "mes-films").strip() or "mes-films",
+        max_turns=int(_number("AGENT_MAX_TURNS", 12)),
+        max_budget_usd=_number("AGENT_MAX_BUDGET_USD", 0.25),
+        daily_budget_usd=_number("AGENT_DAILY_BUDGET_USD", 1.00),
     )
 
 
