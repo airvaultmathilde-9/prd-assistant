@@ -22,6 +22,7 @@ from memory import SEEN_STATUSES, STATUSES, Memory
 import my_films
 from ratings_store import RatingsStore
 from seen_films import add_seen_film
+from tracing import score_feedback
 from tmdb_client import TMDBClient
 from recommend import Answer, Film, recommend
 
@@ -163,6 +164,7 @@ def save_feedback(tmdb_id: int, title: str, key: str) -> None:
         return
     if status:
         memory.set_feedback(tmdb_id, title, status)
+        score_feedback(state.answer.trace_id if state.answer else None, title, status)
     else:  # cliquer à nouveau sur l'avis choisi l'annule
         memory.clear_feedback(tmdb_id)
 
@@ -269,6 +271,7 @@ def seen_dialog(info: dict) -> None:
             st.error(f"Enregistrement impossible ({type(exc).__name__}). Réessaie dans un instant.")
             return
         close_seen_dialog()
+        score_feedback(state.answer.trace_id if state.answer else None, info["title"], info["status"], note)
         state.pop("my_films", None)  # la page « Mes films » relira la liste à jour
         state.pill_resets = {info["key"]: info["status"]}
         state.toast = f"« {info['title']} » ajouté à tes notes ({note:g}/5)."

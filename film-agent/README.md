@@ -42,6 +42,21 @@ Menu à gauche → **🎞️ Mes films** : tous les films de ta base Pinecone, a
 **L'app fait foi** : un film ajouté ou modifié ici (ou par l'agent) n'est plus jamais écrasé ni supprimé
 par `scripts/import_notes.py`. L'import du CSV ne sert plus qu'à ajouter des films en masse.
 
+## Évaluation avec Langfuse (facultatif)
+
+Avec `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` et `LANGFUSE_HOST` dans `.env` (`tracing.py`) :
+
+- **une trace par recherche** dans Langfuse : la demande, chaque outil appelé (paramètres, résultat),
+  les films proposés, le coût et les tours ;
+- **des scores automatiques** : `films_proposes`, `films_ecartes` (non vérifiés dans TMDB), `tours`,
+  `cout_usd`, `question_posee`, `echec` ;
+- **tes avis** sur les cartes deviennent des scores de la recherche : `avis` (vu et aimé, vu et pas aimé,
+  pas envie, plus tard) et `note_donnee`.
+
+Sans ces clés, ou si Langfuse ne répond pas, l'app fonctionne exactement comme avant.
+Ce qui part chez Langfuse : tes demandes, les résultats des outils (dont des extraits de tes commentaires)
+et les réponses de l'agent. Jamais tes clés.
+
 ## Garde-fous de coût
 
 Seule l'API Anthropic est payante (TMDB et Pinecone sont gratuits). Une recherche coûte d'autant plus

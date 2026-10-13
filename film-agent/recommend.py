@@ -13,13 +13,14 @@ import re
 from dataclasses import dataclass, field
 from typing import Callable
 
-from claude_agent_sdk import AssistantMessage, ResultMessage, ToolUseBlock, query
+from claude_agent_sdk import AssistantMessage, ResultMessage, ToolResultBlock, ToolUseBlock, UserMessage, query
 
 from agent import build_options
 from agent_tools import SessionRegistry
 from config import Settings
 from costs import CostLog, DailyBudgetExceeded
 from memory import Memory
+from tracing import Tracer, get_client
 from tmdb_client import TMDBClient, TMDBError
 
 ROLES = {
@@ -119,6 +120,7 @@ class Answer:
     rejected: list[int] = field(default_factory=list)  # tmdb_id inventés ou non vérifiés
     cost_usd: float | None = None
     turns: int = 0
+    trace_id: str | None = None  # la trace Langfuse de cette recherche (pour y rattacher mes avis)
 
 
 _SENTENCES = re.compile(r"(?<=[.!?…])\s+")
@@ -173,6 +175,24 @@ async def recommend(prompt: str, settings: Settings, registry: SessionRegistry,
     except DailyBudgetExceeded as exc:
         return Answer("error", f"💶 {exc}", [], session_id)
 
+    tracer = Tracer(get_client())
+    with tracer.recherche(prompt, settings.claude_model):
+        answer = await _run_agent(prompt, settings, registry, session_id, on_tool, memory, costs, tracer)
+        tracer.finish(
+            output={"type": answer.kind, "message": answer.message,
+                    "films": [f"{f.role_label} : {f.details.get('title')} ({f.details.get('year')})"
+                              for f in answer.films]},
+            metadata={"tours": answer.turns, "cout_usd": answer.cost_usd},
+            # Contrôles automatiques, visibles et filtrables dans Langfuse.
+            scores={"films_proposes": len(answer.films), "films_ecartes": len(answer.rejected),
+                    "tours": answer.turns, "cout_usd": answer.cost_usd or 0.0,
+                    "question_posee": float(answer.kind == "question"),
+                    "echec": float(answer.kind == "error")})
+    answer.trace_id = tracer.trace_id
+    return answer
+
+
+async def _run_agent(prompt, settings, registry, session_id, on_tool, memory, costs, tracer) -> Answer:
     options = build_options(settings, registry, memory)
     options.system_prompt += UI_INSTRUCTIONS
     options.output_format = {"type": "json_schema", "schema": OUTPUT_SCHEMA}
@@ -180,11 +200,18 @@ async def recommend(prompt: str, settings: Settings, registry: SessionRegistry,
 
     result: ResultMessage | None = None
     async for message in query(prompt=prompt, options=options):
-        if isinstance(message, AssistantMessage) and on_tool:
+        if isinstance(message, AssistantMessage):
             for block in message.content:
-                # StructuredOutput = la réponse finale elle-même, pas un outil à afficher.
+                # StructuredOutput = la réponse finale elle-même, pas un outil.
                 if isinstance(block, ToolUseBlock) and block.name != "StructuredOutput":
-                    on_tool(block.name.rsplit("__", 1)[-1], block.input)
+                    name = block.name.rsplit("__", 1)[-1]
+                    tracer.tool_start(block.id, name, block.input)
+                    if on_tool:
+                        on_tool(name, block.input)
+        elif isinstance(message, UserMessage) and isinstance(message.content, list):
+            for block in message.content:
+                if isinstance(block, ToolResultBlock):
+                    tracer.tool_end(block.tool_use_id, block.content, bool(block.is_error))
         elif isinstance(message, ResultMessage):
             result = message
             costs.add(message.total_cost_usd)  # même une recherche interrompue a coûté
@@ -194,7 +221,8 @@ async def recommend(prompt: str, settings: Settings, registry: SessionRegistry,
                   "error_max_budget_usd": "l'agent a atteint le budget de la recherche"}.get(
                       result.subtype if result else "", "l'agent n'a pas pu terminer")
         return Answer("error", f"Désolée, {reason}. Reformule ta demande ?", [],
-                      result.session_id if result else session_id)
+                      result.session_id if result else session_id,
+                      cost_usd=result.total_cost_usd if result else None, turns=result.num_turns if result else 0)
 
     output = result.structured_output
     films, rejected = [], []
