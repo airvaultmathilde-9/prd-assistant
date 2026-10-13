@@ -12,6 +12,7 @@ Principes de conception d'un bon outil pour un LLM :
 from __future__ import annotations
 
 import unicodedata
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from urllib.parse import quote_plus
 
@@ -29,6 +30,7 @@ BASE_URL = "https://api.themoviedb.org/3"
 POSTER_BASE = "https://image.tmdb.org/t/p/w342"
 TIMEOUT = 15.0
 OVERVIEW_MAX_CHARS = 280
+ENRICH_MAX = 40  # films enrichis au maximum par filmographie
 
 
 class TMDBError(Exception):
@@ -227,6 +229,9 @@ class TMDBClient:
         """
         # Un seul appel : la fiche du film (pour le titre) + ses plateformes.
         movie = self._get(f"/movie/{tmdb_id}", append_to_response="watch/providers")
+        return self._watch_from(tmdb_id, movie)
+
+    def _watch_from(self, tmdb_id: int, movie: dict) -> dict:
         title = movie.get("title") or movie.get("original_title") or ""
         fr = movie.get("watch/providers", {}).get("results", {}).get(TMDB_REGION)
         result = {"tmdb_id": tmdb_id, "title": title,
@@ -292,7 +297,9 @@ class TMDBClient:
         return None
 
     def get_person_filmography(self, person_id: int, role: str = "acting",
-                               max_billing: int | None = None, limit: int = 40) -> list[dict]:
+                               max_billing: int | None = None, limit: int = 40,
+                               with_details: bool = False, max_runtime: int | None = None,
+                               only_at_home: bool = False) -> list[dict]:
         """Filmographie d'une personne, du plus récent au plus ancien.
 
         role = "acting" (films où elle joue) ou "directing" (films qu'elle a réalisés).
@@ -334,7 +341,35 @@ class TMDBClient:
                    if role == "acting" else {}),
             })
         films.sort(key=lambda f: f["year"] or 0, reverse=True)
+        if with_details or max_runtime or only_at_home:
+            films = self._enrich(films[:ENRICH_MAX])
+            if max_runtime:
+                films = [f for f in films if f.get("runtime_min") and f["runtime_min"] <= max_runtime]
+            if only_at_home:  # abonnement, gratuit, location ou achat ; pas « autre abonnement »
+                films = [f for f in films if f.get("best_access") not in (None, "autre_abonnement")]
         return films[:limit]
+
+    def _enrich(self, films: list[dict]) -> list[dict]:
+        """Ajoute à chaque film sa durée et où le voir chez moi.
+
+        Un appel TMDB par film (fiche + plateformes), lancés en parallèle : c'est le CODE
+        qui fait ce travail répétitif, gratuitement, au lieu de l'agent, outil par outil.
+        """
+        self.subscription_provider_ids()  # rempli une fois, avant les appels en parallèle
+
+        def details(film: dict) -> dict:
+            try:
+                movie = self._get(f"/movie/{film['tmdb_id']}", append_to_response="watch/providers")
+            except TMDBError:
+                return film
+            watch = self._watch_from(film["tmdb_id"], movie)
+            best = watch["options"][0] if watch["options"] else None
+            return {**film, "runtime_min": movie.get("runtime"),
+                    "best_access": best["access"] if best else None,
+                    "ou_voir": f"{best['platform']} ({best['access']})" if best else None}
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            return list(pool.map(details, films))
 
     def search_person(self, name: str, limit: int = 5) -> list[dict]:
         """Trouver l'identifiant d'un·e cinéaste ou d'un·e acteur·rice (pour discover_movies)."""

@@ -44,7 +44,10 @@ BUDGET_INSTRUCTIONS = """
 Chaque tour coûte de l'argent : tout ton contexte est relu à chaque fois.
 Tu disposes d'au plus {max_turns} tours, et tu seras coupé au-delà, sans pouvoir répondre. Donc :
 - lance en parallèle (dans le même tour) les appels qui ne dépendent pas les uns des autres ;
-- vise une réponse en 6 à 8 tours ; n'appelle get_movie_details et get_watch_options que pour tes finalistes ;
+- laisse les outils faire le travail répétitif : filtres de discover_movies (on_my_subscriptions,
+  max_runtime), with_details / only_at_home / max_runtime de get_person_filmography ;
+- get_movie_details et get_watch_options prennent PLUSIEURS films : un seul appel pour tous tes finalistes ;
+- vise une réponse en 6 à 8 tours ;
 - à {last_call} tours, arrête de chercher et réponds avec ce que tu as (moins de 3 films si besoin)."""
 
 

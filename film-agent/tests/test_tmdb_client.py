@@ -229,3 +229,18 @@ def test_trailer_english_fallback_and_none():
     client = TMDBClient(FAKE_KEY, http=httpx.Client(base_url=BASE_URL, transport=httpx.MockTransport(handler)))
     assert client.get_trailer(1)["language"] == "en"
     assert client.get_trailer(2) is None  # un making-of n'est pas une bande-annonce
+
+
+def test_filmography_with_details_filters_runtime_and_home():
+    def movie(runtime, providers):
+        return (200, {"title": "x", "runtime": runtime, "watch/providers": {"results": providers}})
+    netflix = {"FR": {"link": "https://tmdb/w", "flatrate": [{"provider_id": 8, "provider_name": "Netflix"}]}}
+    disney = {"FR": {"link": "https://tmdb/w", "flatrate": [{"provider_id": 337, "provider_name": "Disney Plus"}]}}
+    client = make_client({"/genre/movie/list": (200, GENRES), "/person/42/movie_credits": (200, FILMO),
+                          "/watch/providers/movie": (200, PROVIDERS_FR),
+                          "/movie/5": movie(100, netflix), "/movie/1": movie(180, netflix),
+                          "/movie/2": movie(90, disney), "/movie/4": movie(None, {})})
+    films = client.get_person_filmography(42, role="acting", with_details=True)
+    assert films[0]["runtime_min"] == 100 and films[0]["ou_voir"] == "Netflix (abonnement)"
+    short_at_home = client.get_person_filmography(42, role="acting", max_runtime=120, only_at_home=True)
+    assert [f["title"] for f in short_at_home] == ["Rien à foutre"]  # 3 h, Disney+ et sans durée écartés

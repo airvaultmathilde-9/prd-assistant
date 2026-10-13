@@ -70,6 +70,9 @@ obtenus) est relu par Claude. Réglages dans `.env` (voir `.env.example`) :
 | `AGENT_DAILY_BUDGET_USD` | 1.00 | coût maximum par jour : au-delà, plus aucune recherche jusqu'au lendemain |
 | `CLAUDE_MODEL` | `claude-sonnet-5-5` | `claude-haiku-5-5` coûte nettement moins cher (choix un peu moins fins) |
 
+Pour faire moins de tours, les outils font le travail répétitif : `get_movie_details` et `get_watch_options`
+acceptent plusieurs films en un seul appel, et la filmographie peut renvoyer directement durée et plateformes.
+
 Le total du jour est affiché en haut du panneau « Ma mémoire » (compteur dans `data/memory/couts.json`).
 Conseil : fixe aussi une limite mensuelle sur console.anthropic.com.
 
@@ -100,7 +103,7 @@ Résultat attendu : trois lignes ✅ (Anthropic, Pinecone, TMDB).
 | `discover_movies` | trouver des films par critères (genres, années, note, langue, pays, personnes, thèmes, durée, sur mes abonnements) |
 | `get_movie_details` | fiche complète : réalisation, casting, durée, langues, mots-clés |
 | `get_watch_providers` | où le voir **chez moi** en France, avec un lien par option, dans l'ordre : abonnement (Netflix, Canal+) → gratuit (Arte, france.tv…) → location → achat. Pas de séances de cinéma |
-| `get_person_filmography` | films réalisés par quelqu'un, ou films où quelqu'un a un rôle principal |
+| `get_person_filmography` | films réalisés par quelqu'un, ou films où quelqu'un a un rôle principal ; peut ajouter durée et où le voir, et filtrer (durée max, disponible chez moi) |
 | `search_person` / `search_keyword` | traduire « Sciamma » ou « voyage dans le temps » en identifiants pour `discover_movies` |
 
 ```bash
