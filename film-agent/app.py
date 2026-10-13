@@ -31,9 +31,21 @@ ACCESS_LABELS = {"abonnement": "Inclus", "gratuit": "Gratuit", "location": "Loca
 st.set_page_config(page_title="Ce soir, je regarde…", page_icon="🎬", layout="wide")
 st.markdown("""
 <style>
-  /* Style « moderne » inspiré d'Airbnb : typo Inter, cartes à ombre douce, coins arrondis, accent corail */
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-  html, body, .stApp, .stMarkdown, button, input, textarea { font-family: 'Inter', -apple-system, sans-serif !important; }
+  /* Style « moderne » inspiré d'Airbnb : typo Inter, cartes à ombre douce, coins arrondis, accent corail */
+  html, body, .stApp, .stMarkdown, h1, h2, h3, button, input, textarea { font-family: 'Inter', -apple-system, sans-serif !important; }
+  /* Accueil façon Airbnb : colonne centrée, titre mesuré, barre de recherche en pilule */
+  .st-key-hero { max-width: 720px; margin: 1.5rem auto 2rem; text-align: center; }
+  .hero-title { font-size: 2.3rem !important; font-weight: 700 !important; letter-spacing: -.03em; margin: 0 0 .4rem; padding: 0; }
+  .hero-sub { font-size: 1.05rem; color: #6A6A6A; margin: 0 0 1.8rem; }
+  .st-key-hero [data-testid="stForm"] { border: 1px solid #DDDDDD; border-radius: 999px; padding: .45rem .5rem .45rem 1.4rem;
+      box-shadow: 0 3px 14px rgba(0,0,0,.08); transition: box-shadow .2s; }
+  .st-key-hero [data-testid="stForm"]:hover { box-shadow: 0 6px 22px rgba(0,0,0,.14); }
+  .st-key-hero [data-testid="stTextInputRootElement"] { border: none !important; background: transparent !important; }
+  .st-key-hero input { font-size: 1.05rem !important; background: transparent !important; }
+  .st-key-hero [data-testid="stFormSubmitButton"] button { min-height: 3rem; }
+  .st-key-hero .history { font-size: .85rem; color: #6A6A6A; margin-top: .8rem; }
+  .hero-title, .hero-sub, .st-key-hero .history { text-align: center !important; }
   [data-testid="stHeader"] { background: transparent; }
   .block-container { max-width: 1120px; padding-top: 3rem; }
   h1 { font-weight: 800 !important; letter-spacing: -.03em; }
@@ -339,20 +351,24 @@ def render_answer(answer: Answer) -> None:
 
 def page_recommend() -> None:
     render_memory_sidebar()
-    st.title("🎬 Ce soir, je regarde…")
-    st.caption("Dis-moi ton envie : je cherche dans tes notes et dans le catalogue, "
-               "puis je te propose un choix sûr, une découverte et un pari.")
-
-    if state.history:
-        st.caption("Conversation : " + " → ".join(f"« {h} »" for h in state.history))
-
-    with st.form("demande", clear_on_submit=False):
-        label = "Ta réponse" if state.answer and state.answer.kind == "question" else "De quoi as-tu envie ?"
-        prompt = st.text_area(label, key="prompt", height=90,
-                              placeholder="Ex. : un thriller coréen pas trop violent, à regarder ce soir")
-        left, right = st.columns([3, 1])
-        submitted = left.form_submit_button("Trouver 3 films", type="primary", width="stretch")
-        right.form_submit_button("Nouvelle recherche", width="stretch", on_click=reset)
+    asking = bool(state.answer and state.answer.kind == "question")
+    with st.container(key="hero"):
+        st.markdown('<h1 class="hero-title">Qu\'est-ce qu\'on regarde ce soir ?</h1>'
+                    '<p class="hero-sub">Décris ton envie : je te trouve 3 films à voir chez toi.</p>',
+                    unsafe_allow_html=True)
+        # La barre de recherche : un champ sur une ligne + un bouton, dans une « pilule ».
+        with st.form("demande", clear_on_submit=False, border=False):
+            field, button = st.columns([5, 1.4], vertical_alignment="center")
+            prompt = field.text_input("Ta réponse" if asking else "De quoi as-tu envie ?", key="prompt",
+                                      label_visibility="collapsed",
+                                      placeholder="Ta réponse…" if asking else
+                                      "Une envie, un acteur, une durée…")
+            submitted = button.form_submit_button("🔍 Chercher", type="primary", width="stretch")
+        if state.history:  # « Recommencer » n'a de sens qu'après une première recherche
+            st.markdown('<div class="history">' + " → ".join(f"« {escape(h)} »" for h in state.history)
+                        + "</div>", unsafe_allow_html=True)
+            _, middle, _ = st.columns([2, 1, 2])  # colonne du milieu : le lien reste centré
+            middle.button("↺ Recommencer", type="tertiary", on_click=reset, key="restart", width="stretch")
 
     if submitted and prompt.strip() and ask(prompt.strip()):
         st.rerun()  # réaffiche la page avec la réponse (et le bon libellé du champ)
