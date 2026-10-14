@@ -57,8 +57,15 @@ par `scripts/import_notes.py`. L'import du CSV ne sert plus qu'à ajouter des fi
 
 Avec `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` et `LANGFUSE_HOST` dans `.env` (`tracing.py`) :
 
-- **une trace par recherche** dans Langfuse : la demande, chaque outil appelé (paramètres, résultat),
-  les films proposés, le coût et les tours ;
+- **une trace par recherche** dans Langfuse, qui contient :
+  - chaque **tour de Claude** (« generation ») : modèle, durée, ce qu'il a écrit ou décidé d'appeler, tokens ;
+  - chaque **outil** appelé (paramètres, résultat, erreur) ;
+  - la **vérification** finale (films gardés, films écartés car non vus dans TMDB) ;
+  - le **coût total exact** (« claude · coût total ») ;
+- des **attributs pour filtrer** : la conversation (onglet *Sessions* : une demande et sa question de
+  clarification ensemble), l'étiquette `app` ou `eval`, et la **version** du prompt (empreinte du prompt
+  et de la skill : elle change dès qu'on les modifie, pour comparer avant / après) ;
+- l'évaluation (`scripts/eval.py`) trace aussi le **juge** (trace « juge », étiquette `eval`) ;
 - **des scores automatiques** : `films_proposes`, `films_ecartes` (non vérifiés dans TMDB), `tours`,
   `cout_usd`, `question_posee`, `echec` ;
 - **tes avis** sur les cartes deviennent des scores de la recherche : `avis` (vu et aimé, vu et pas aimé,

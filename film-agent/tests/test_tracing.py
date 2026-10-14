@@ -20,8 +20,10 @@ class FakeSpan:
         self.log, self.name = log, name
 
     def start_observation(self, **kwargs):
-        if kwargs.get("as_type") == "generation":
-            self.log.append(("generation", kwargs["model"], kwargs["usage_details"], kwargs["cost_details"]))
+        if kwargs.get("as_type") == "generation" and "cost_details" in kwargs:
+            self.log.append(("generation", kwargs["model"], kwargs.get("metadata"), kwargs["cost_details"]))
+        elif kwargs.get("as_type") in ("generation", "span"):
+            self.log.append((kwargs["as_type"], kwargs["name"]))
         else:
             self.log.append(("tool", kwargs["name"], kwargs["input"]))
         return FakeSpan(self.log, kwargs["name"])
@@ -69,7 +71,8 @@ def test_a_search_becomes_a_trace_with_tools_and_scores(monkeypatch, tmp_path):
 
     async def fake_query(prompt, options):
         yield AssistantMessage(content=[ToolUseBlock(id="t1", name="mcp__films__discover_movies",
-                                                     input={"genres": ["Comédie"]})], model="m")
+                                                     input={"genres": ["Comédie"]})], model="m", message_id="a",
+                               usage={"input_tokens": 1000, "output_tokens": 50})
         yield UserMessage(content=[ToolResultBlock(tool_use_id="t1", content="[…]", is_error=False)])
         yield ResultMessage(subtype="success", duration_ms=1, duration_api_ms=1, is_error=False, num_turns=4,
                             session_id="s", total_cost_usd=0.08,
@@ -83,8 +86,13 @@ def test_a_search_becomes_a_trace_with_tools_and_scores(monkeypatch, tmp_path):
     assert answer.trace_id == "trace-123"
     assert ("trace", "recommandation", {"demande": "Un film"}) in fake.log
     assert ("tool", "discover_movies", {"genres": ["Comédie"]}) in fake.log and ("end", "discover_movies") in fake.log
-    # Les appels à Claude : une « generation » avec modèle, tokens et coût exact.
-    assert ("generation", "claude-sonnet-5-5", {"input": 1200, "output": 300, "cache_read_input_tokens": 9000},
+    # Chaque tour de Claude est une « generation » (tokens, ce qu'il a décidé), puis le coût total exact.
+    assert [e for e in fake.log if e[0] == "generation"][:2] == [("generation", "claude · tour 1"),
+                                                                  ("generation", "claude · tour 2")]
+    assert ("update", "claude · tour 1", {"model": "m", "usage_details": {"input": 1000, "output": 50},
+            "output": [{"appel": "discover_movies", "parametres": {"genres": ["Comédie"]}}]}) in fake.log
+    assert ("generation", "claude-sonnet-5-5",
+            {"tokens_total": {"input": 1200, "output": 300, "cache_read_input_tokens": 9000}, "tours": 2},
             {"total": 0.08}) in fake.log
     assert fake.scores == {"films_proposes": 0, "films_ecartes": 0, "tours": 4, "cout_usd": 0.08,
                            "question_posee": 1.0, "echec": 0.0}

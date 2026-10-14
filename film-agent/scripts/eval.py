@@ -37,7 +37,7 @@ from agent_tools import SessionRegistry  # noqa: E402
 from config import PROJECT_DIR, ConfigError, get_settings  # noqa: E402
 from ratings_store import RatingsStore  # noqa: E402
 from recommend import recommend  # noqa: E402
-from tracing import get_client  # noqa: E402
+from tracing import Tracer, get_client  # noqa: E402
 
 RESULTS_DIR = PROJECT_DIR / "data" / "evals"
 # Si l'agent pose une question là où on ne l'attendait pas, on lui répond ceci, une fois.
@@ -71,12 +71,14 @@ def send_scores(trace_id: str | None, result: ev.CaseResult, run: str) -> None:
 
 async def run_case(case, settings, my_ratings, seen_ids, judge_model, run) -> ev.CaseResult:
     registry, mem = SessionRegistry(), memory_module.Memory()
-    answer = await recommend(case["demande"], settings, registry, memory=mem)
+    # Dans Langfuse : étiquette « eval », et une « session » par demande (agent + juge ensemble).
+    tagged = {"conversation_id": f"{run} · {case['id']}", "tags": ["eval"]}
+    answer = await recommend(case["demande"], settings, registry, memory=mem, **tagged)
     cost, turns, asked = answer.cost_usd or 0.0, answer.turns, False
     if answer.kind == "question" and case.get("controles", {}).get("question") is not True:
         print(f"   question inattendue : « {answer.message} » → on répond « {DEFAULT_REPLY} »")
         question, asked = answer.message, True
-        answer = await recommend(DEFAULT_REPLY, settings, registry, answer.session_id, memory=mem)
+        answer = await recommend(DEFAULT_REPLY, settings, registry, answer.session_id, memory=mem, **tagged)
         cost, turns = cost + (answer.cost_usd or 0.0), turns + answer.turns
         answer.message = f"(après la question « {question} ») {answer.message}".strip()
     answer.cost_usd = cost  # pour le contrôle du plafond : les deux échanges comptent
@@ -88,7 +90,13 @@ async def run_case(case, settings, my_ratings, seen_ids, judge_model, run) -> ev
 
     verdict = ev.Verdict(commentaire="pas de juge : l'agent a échoué")
     if answer.kind != "error":
-        verdict = await ev.judge(case, answer, my_ratings, judge_model, settings.anthropic_api_key)
+        tracer = Tracer(get_client())
+        with tracer.trace("juge", {"cas": case["id"], "demande": case["demande"], "trace_evaluee": answer.trace_id},
+                          as_type="evaluator", model=judge_model, session_id=tagged["conversation_id"],
+                          tags=["eval"]):
+            verdict = await ev.judge(case, answer, my_ratings, judge_model, settings.anthropic_api_key)
+            tracer.llm_usage(judge_model, verdict.usage, verdict.cost_usd)
+            tracer.finish(output={**verdict.scores, "commentaire": verdict.commentaire}, metadata={}, scores={})
         costs.CostLog().add(verdict.cost_usd)
 
     result = ev.CaseResult(

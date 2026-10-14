@@ -166,9 +166,13 @@ def verify_and_enrich(raw_films: list[dict], registry: SessionRegistry,
 async def recommend(prompt: str, settings: Settings, registry: SessionRegistry,
                     session_id: str | None = None,
                     on_tool: Callable[[str, dict], None] | None = None,
-                    memory: Memory | None = None) -> Answer:
+                    memory: Memory | None = None, conversation_id: str | None = None,
+                    tags: list[str] | None = None) -> Answer:
     """Lance l'agent sur une demande. session_id permet de continuer la conversation
-    (par exemple pour répondre à sa question de clarification)."""
+    (par exemple pour répondre à sa question de clarification).
+
+    conversation_id regroupe dans Langfuse les recherches d'une même conversation (« session ») ;
+    tags les étiquette (« app » par défaut, « eval » pour l'évaluation)."""
     costs = CostLog()
     try:
         costs.check(settings.daily_budget_usd)  # garde-fou : on ne dépense plus rien au-delà du budget du jour
@@ -176,7 +180,7 @@ async def recommend(prompt: str, settings: Settings, registry: SessionRegistry,
         return Answer("error", f"💶 {exc}", [], session_id)
 
     tracer = Tracer(get_client())
-    with tracer.recherche(prompt, settings.claude_model):
+    with tracer.recherche(prompt, settings.claude_model, conversation_id, tags):
         answer = await _run_agent(prompt, settings, registry, session_id, on_tool, memory, costs, tracer)
         tracer.finish(
             output={"type": answer.kind, "message": answer.message,
@@ -187,7 +191,8 @@ async def recommend(prompt: str, settings: Settings, registry: SessionRegistry,
             scores={"films_proposes": len(answer.films), "films_ecartes": len(answer.rejected),
                     "tours": answer.turns, "cout_usd": answer.cost_usd or 0.0,
                     "question_posee": float(answer.kind == "question"),
-                    "echec": float(answer.kind == "error")})
+                    "echec": float(answer.kind == "error")},
+            error=answer.message if answer.kind == "error" else None)
     answer.trace_id = tracer.trace_id
     return answer
 
@@ -199,8 +204,10 @@ async def _run_agent(prompt, settings, registry, session_id, on_tool, memory, co
     options.resume = session_id
 
     result: ResultMessage | None = None
+    tracer.turn_start()
     async for message in query(prompt=prompt, options=options):
         if isinstance(message, AssistantMessage):
+            tracer.assistant_message(message)
             for block in message.content:
                 # StructuredOutput = la réponse finale elle-même, pas un outil.
                 if isinstance(block, ToolUseBlock) and block.name != "StructuredOutput":
@@ -230,5 +237,9 @@ async def _run_agent(prompt, settings, registry, session_id, on_tool, memory, co
     if output.get("kind") == "recommendations":
         films, rejected = verify_and_enrich(output.get("films", []), registry,
                                             TMDBClient(settings.tmdb_api_key))
+        tracer.step("verification", input=output.get("films", []),
+                    output={"gardes": [f"{f.details.get('title')} ({f.tmdb_id})" for f in films],
+                            "ecartes_non_vus_dans_tmdb": rejected},
+                    level="WARNING" if rejected else "DEFAULT")
     return Answer(output.get("kind", "recommendations"), output.get("message", ""), films,
                   result.session_id, rejected, result.total_cost_usd, result.num_turns)
