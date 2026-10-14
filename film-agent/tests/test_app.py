@@ -76,7 +76,7 @@ def click_find(app):
 
 
 def fake_recommend(answer):
-    async def _recommend(prompt, settings, registry, session_id=None, on_tool=None, memory=None):
+    async def _recommend(prompt, settings, registry, session_id=None, on_tool=None, memory=None, **_):
         on_tool("discover_movies", {"genres": ["Comédie"]})
         return answer
     return _recommend

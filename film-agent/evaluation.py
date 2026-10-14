@@ -140,6 +140,7 @@ class Verdict:
     scores: dict[str, int] = field(default_factory=dict)
     commentaire: str = ""
     cost_usd: float = 0.0
+    usage: dict = field(default_factory=dict)
 
 
 async def judge(case: dict, answer, my_ratings: list[dict], model: str, api_key: str) -> Verdict:
@@ -152,6 +153,7 @@ async def judge(case: dict, answer, my_ratings: list[dict], model: str, api_key:
     async for message in query(prompt=judge_input(case, answer, my_ratings), options=options):
         if isinstance(message, ResultMessage):
             verdict.cost_usd = message.total_cost_usd or 0.0
+            verdict.usage = message.usage or {}
             out = message.structured_output
             if isinstance(out, dict):
                 verdict.scores = {c: int(out.get(c, 0)) for c in CRITERIA}

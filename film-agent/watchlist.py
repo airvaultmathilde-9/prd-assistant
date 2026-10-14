@@ -18,7 +18,7 @@ from recommend import format_runtime
 from tmdb_client import TMDBError
 
 state = st.session_state
-ACCESS_LABELS = {"abonnement": "inclus dans ton abonnement", "gratuit": "gratuit",
+ACCESS_LABELS = {"abonnement": "inclus", "gratuit": "gratuit",
                  "location": "en location", "achat": "à l'achat", "autre_abonnement": "autre abonnement"}
 
 
@@ -87,6 +87,34 @@ def add_dialog() -> None:
         st.rerun()
 
 
+def render_card(memory: Memory, tmdb_id: int, title: str) -> None:
+    info = _info(tmdb_id)
+    with st.container(key=f"wl-card-{tmdb_id}", border=True):
+        if info.get("poster_url"):
+            st.image(info["poster_url"], width="stretch")
+        meta = [format_runtime(info.get("runtime_min")), ", ".join((info.get("directors") or [])[:1]),
+                ", ".join((info.get("genres") or [])[:2])]
+        best = info.get("best")
+        chip = (f'<span class="chip chip-{best["access"]}">{escape(best["platform"])} · '
+                f'{ACCESS_LABELS.get(best["access"], best["access"])}</span>' if best
+                else '<span class="chip chip-none">Pas disponible chez toi</span>')
+        added = memory.feedback[str(tmdb_id)].get("date", "")
+        st.markdown(
+            f'<div class="wl-title">{escape(info.get("title") or title)} '
+            f'<span class="year">{info.get("year") or ""}</span></div>'
+            f'<div class="meta">{escape(" · ".join(m for m in meta if m))}</div>{chip}'
+            + (f'<div class="wl-added">Mis de côté le {added[8:10]}/{added[5:7]}</div>' if added else ""),
+            unsafe_allow_html=True)
+        watch, seen, delete = st.columns([3, 1, 1], gap="small", vertical_alignment="center")
+        if best and best.get("link"):
+            watch.link_button("▶️ Regarder", best["link"], type="primary", width="stretch")
+        if seen.button("✓", key=f"wl-seen-btn-{tmdb_id}", help="Je l'ai vu : le ranger dans « Mes films »"):
+            state.wl_dialog = ("seen", tmdb_id)
+        if delete.button("🗑️", key=f"wl-del-btn-{tmdb_id}", help="Retirer de ma liste"):
+            Memory().clear_feedback(tmdb_id)
+            st.rerun()
+
+
 def render() -> None:
     st.title("🕒 À voir")
     if "mf_toast" in state:
@@ -95,39 +123,17 @@ def render() -> None:
     later = sorted(memory.films_with("plus_tard"),
                    key=lambda f: memory.feedback[str(f[0])].get("date", ""), reverse=True)
     st.caption(f"{len(later)} film{'s' if len(later) > 1 else ''} mis de côté · ajoute-en avec le bouton 🕒 "
-               "sous une recommandation, ou ici. Une fois vu, range-le dans « Mes films ».")
+               "sous une recommandation, ou ici.")
     if st.button("➕ Mettre un film de côté", type="primary"):
         state.wl_dialog = ("add", None)
     if not later:
         st.info("Ta liste est vide pour l'instant.")
 
-    for tmdb_id, title in later:
-        info = _info(tmdb_id)
-        with st.container(key=f"wl-row-{tmdb_id}", border=True):
-            poster, text, actions = st.columns([1, 6, 3], vertical_alignment="center")
-            if info.get("poster_url"):
-                poster.image(info["poster_url"])
-            meta = [format_runtime(info.get("runtime_min")), ", ".join((info.get("directors") or [])[:2]),
-                    ", ".join((info.get("genres") or [])[:2])]
-            best = info.get("best")
-            where = (f"📺 {best['platform']} · {ACCESS_LABELS.get(best['access'], best['access'])}"
-                     if best else "📺 Pas disponible chez toi pour l'instant")
-            added = memory.feedback[str(tmdb_id)].get("date", "")
-            text.markdown(
-                f'<div class="mf-title">{escape(info.get("title") or title)} '
-                f'<span class="year">{info.get("year") or ""}</span></div>'
-                f'<div class="meta">{escape(" · ".join(m for m in meta if m))}</div>'
-                f'<div class="watch">{escape(where)}</div>'
-                + (f'<div class="meta">Mis de côté le {added[8:10]}/{added[5:7]}/{added[:4]}</div>' if added else ""),
-                unsafe_allow_html=True)
-            if best and best.get("link"):
-                actions.link_button(f"▶️ {best['platform']}", best["link"], width="stretch")
-            if actions.button("✅ Je l'ai vu", key=f"wl-seen-btn-{tmdb_id}", type="primary", width="stretch"):
-                state.wl_dialog = ("seen", tmdb_id)
-            if actions.button("Retirer", key=f"wl-del-btn-{tmdb_id}", width="stretch",
-                              help="Retirer de la liste, sans le noter"):
-                Memory().clear_feedback(tmdb_id)
-                st.rerun()
+    # Des cartes en grille, comme sur la page d'accueil : l'affiche d'abord.
+    for row_start in range(0, len(later), 3):
+        for column, (tmdb_id, title) in zip(st.columns(3, gap="medium"), later[row_start:row_start + 3]):
+            with column:
+                render_card(memory, tmdb_id, title)
 
     kind, film_id = state.get("wl_dialog", (None, None))
     titles = dict(later)

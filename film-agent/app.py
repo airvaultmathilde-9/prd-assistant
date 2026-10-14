@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 from datetime import date
 from html import escape
+from uuid import uuid4
 
 import streamlit as st
 
@@ -101,8 +102,20 @@ st.markdown("""
   /* Affiches : hauteur fixe, recadrées, pour que les infos restent visibles */
   [data-testid="stImage"] img { height: 320px; object-fit: cover; border-radius: 14px; }
   /* Page « À voir » : petites affiches */
-  [class*="st-key-wl-row-"] { border-radius: 16px; }
-  [class*="st-key-wl-row-"] [data-testid="stImage"] img { height: 110px; border-radius: 10px; }
+  [class*="st-key-wl-card-"] { border-radius: 18px; border-color: transparent !important;
+      box-shadow: 0 2px 12px rgba(0,0,0,.08); transition: box-shadow .2s, transform .2s; }
+  [class*="st-key-wl-card-"]:hover { box-shadow: 0 12px 30px rgba(0,0,0,.14); transform: translateY(-2px); }
+  [class*="st-key-wl-card-"] [data-testid="stImage"] img { height: 340px; border-radius: 12px; }
+  [class*="st-key-wl-seen-btn-"] button, [class*="st-key-wl-del-btn-"] button {
+      width: 100%; min-width: 2.6rem; padding: .35rem 0; font-size: 1.05rem; }
+  .wl-title { font-size: 1.15rem; font-weight: 800; letter-spacing: -.01em; line-height: 1.2; margin-top: .3rem; }
+  .wl-title .year { font-weight: 400; opacity: .5; font-size: 1rem; }
+  .wl-added { font-size: .78rem; opacity: .5; margin-top: .45rem; }
+  .chip { display: inline-block; font-size: .78rem; font-weight: 600; padding: .2rem .65rem; border-radius: 999px; }
+  .chip-abonnement { background: #ECFDF3; color: #067647; }
+  .chip-gratuit { background: #DBEAFE; color: #1E40AF; }
+  .chip-location, .chip-achat { background: #FFF4E5; color: #B54708; }
+  .chip-autre_abonnement, .chip-none { background: #F2F4F7; color: #475467; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -113,6 +126,7 @@ state.setdefault("session_id", None)   # pour continuer la conversation avec l'a
 state.setdefault("answer", None)
 state.setdefault("history", [])        # demandes de la conversation en cours
 state.setdefault("prompt", "")
+state.setdefault("conversation_id", uuid4().hex)  # regroupe la conversation dans Langfuse (« session »)
 if state.pop("clear_prompt", False):
     state.prompt = ""
 # Avis à remettre dans les boutons « Ton avis » après la fenêtre « Vu » (un widget ne peut
@@ -125,6 +139,7 @@ if "toast" in state:
 
 def reset() -> None:
     state.registry, state.session_id, state.answer, state.history = SessionRegistry(), None, None, []
+    state.conversation_id = uuid4().hex
     state.prompt = ""
 
 
@@ -142,7 +157,8 @@ def ask(prompt: str) -> bool:
 
         try:
             answer = asyncio.run(recommend(prompt, settings, state.registry,
-                                           state.session_id, on_tool, Memory()))
+                                           state.session_id, on_tool, Memory(),
+                                           conversation_id=state.conversation_id))
         except Exception as exc:  # message court : jamais de détail technique sensible
             status.update(label="Erreur", state="error")
             st.error(f"L'agent a rencontré un problème ({type(exc).__name__}).")

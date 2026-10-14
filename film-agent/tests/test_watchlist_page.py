@@ -56,14 +56,15 @@ def test_lists_films_set_aside_with_where_to_watch(page):
     assert not page.exception
     assert any("Mandibules" in m.value and "1 h 17" in m.value and "Netflix · inclus" in m.value
                for m in page.markdown)
-    assert {el.proto.label for el in page.get("link_button")} == {"▶️ Netflix"}
+    assert {el.proto.label for el in page.get("link_button")} == {"▶️ Regarder"}
+    assert not [b for b in page.button if "vu" in b.label.lower()]  # pas de gros bouton « Je l'ai vu »
 
 
 def test_seen_moves_the_film_to_my_films(page):
     from memory import Memory
     Memory().set_feedback(597298, "Mandibules", "plus_tard")
     page.run()
-    button(page, "✅ Je l'ai vu").click().run()
+    button(page, "✓").click().run()
     page.slider[0].set_value(4.5)
     page.text_area[0].input("Absurde et drôle")
     button(page, "Ranger dans mes films").click().run()
@@ -81,5 +82,5 @@ def test_add_and_remove(page):
     button(page, "🕒 Mettre de côté").click().run()
     assert not page.exception
     assert Memory().films_with("plus_tard") == [(7, "Le Daim")]
-    button(page, "Retirer").click().run()
+    button(page, "🗑️").click().run()
     assert Memory().films_with("plus_tard") == []
