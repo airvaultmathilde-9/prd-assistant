@@ -16,7 +16,7 @@ abonnements (Netflix, Canal+).
 | **4** | Mémoire des préférences et des retours, skill « recommandation » | Mémoire, skills |
 | 5 | Hooks : aucun film hors TMDB, pas de spoiler, pas de clé dans les logs | Garde-fous |
 | 6 (en avance) | Interface Streamlit avec cartes de films | Produit |
-| 7 | Jeu de cas de test et notation automatique | Evals |
+| **7** | Jeu de cas de test et notation automatique | Evals |
 
 ## Lancer l'agent (au quotidien)
 
@@ -56,6 +56,32 @@ Avec `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` et `LANGFUSE_HOST` dans `.env`
 Sans ces clés, ou si Langfuse ne répond pas, l'app fonctionne exactement comme avant.
 Ce qui part chez Langfuse : tes demandes, les résultats des outils (dont des extraits de tes commentaires)
 et les réponses de l'agent. Jamais tes clés.
+
+## Phase 7 : évaluer l'agent (evals)
+
+12 demandes types dans `evals/cas.json` (comédie légère, Adèle Exarchopoulos en moins de 2 h, une demande
+ambiguë, un thriller coréen, un drame sur Netflix…). Pour chacune, l'agent répond, puis :
+
+- des **contrôles automatiques** (vrai/faux, écrits en Python) : 3 films, aucun inventé, aucun déjà vu,
+  disponibles chez toi, justification qui cite un de tes films, durée / personne / langue / années / plateforme
+  respectées, question posée quand la demande est ambiguë (et seulement dans ce cas), coût sous le plafond ;
+- un **juge** (un second appel à Claude, toujours le même modèle) note de 1 à 5 : respect de la demande,
+  justifications, variété des 3 rôles, absence de spoiler, écriture, avec un commentaire.
+
+```bash
+cd film-agent
+python scripts/eval.py --cas adele-2h,ambigu-thomas   # essai sur 2 demandes (~0,20 $)
+python scripts/eval.py                                # les 12 demandes (~1 à 1,50 $)
+python scripts/eval.py --modele claude-haiku-5-5      # le même test avec Haiku
+python scripts/eval.py --comparer data/evals/A.json data/evals/B.json   # comparer deux passages (gratuit)
+```
+
+- Plafond propre à l'évaluation : `EVAL_BUDGET_USD` (défaut 1,50 $) ; elle s'arrête avant de le dépasser.
+  Ton budget du jour dans l'app n'est pas touché, et l'agent travaille sur une copie de ta mémoire.
+- Rapport dans `data/evals/` (privé) et scores `eval_…` dans Langfuse, sur la trace de chaque demande.
+  Attention : les coûts de l'évaluation comptent aussi dans ton alerte Langfuse sur `cout_usd`.
+- Pour ajouter un cas, ajoute une ligne dans `evals/cas.json` (contrôles possibles : `question`, `personne`,
+  `duree_max`, `langue`, `annees`, `plateforme`, `min_films`).
 
 ## Garde-fous de coût
 
@@ -150,11 +176,11 @@ python agent.py --trace-full  # avec les paramètres complets de chaque appel d'
 | Fichier | Rôle |
 |---|---|
 | `prompts/system_prompt.md` | les instructions de l'agent : qui il est, comment travailler, règles, format |
-| `agent_tools.py` | les 9 outils (TMDB + mes notes), avec leurs descriptions pour Claude |
+| `agent_tools.py` | les 13 outils (TMDB, mes notes, mémoire), avec leurs descriptions pour Claude |
 | `agent.py` | assemble l'agent (Claude Agent SDK), fixe les limites, affiche la trace |
 
-Limites : 25 tours et 1 $ maximum par question ; aucun outil intégré de Claude Code
-(pas de terminal, de fichiers ni de web) : l'agent ne peut utiliser que nos 9 outils.
+Limites : voir « Garde-fous de coût » ; aucun outil intégré de Claude Code
+(pas de terminal, de fichiers ni de web) : l'agent ne peut utiliser que nos outils (et charger sa skill).
 
 ## Phase 4 : mémoire et skill
 
