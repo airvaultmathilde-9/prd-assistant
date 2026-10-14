@@ -16,3 +16,4 @@ film-agent/data/memory/
 film-agent/data/*.csv
 film-agent/data/*.json
 film-agent/logs/
+film-agent/data/evals/
