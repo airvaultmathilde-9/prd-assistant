@@ -215,6 +215,7 @@ async def _run_agent(prompt, settings, registry, session_id, on_tool, memory, co
         elif isinstance(message, ResultMessage):
             result = message
             costs.add(message.total_cost_usd)  # même une recherche interrompue a coûté
+            tracer.llm_usage(settings.claude_model, message.usage, message.total_cost_usd)
 
     if result is None or result.is_error or not isinstance(result.structured_output, dict):
         reason = {"error_max_turns": "l'agent a atteint sa limite de tours (essaie une demande plus précise)",

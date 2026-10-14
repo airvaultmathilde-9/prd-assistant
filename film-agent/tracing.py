@@ -71,6 +71,25 @@ class Tracer:
             self._safe(span.update, output=_short(output), level="ERROR" if is_error else "DEFAULT")
             self._safe(span.end)
 
+    def llm_usage(self, model: str, usage: dict | None, cost_usd: float | None) -> None:
+        """Les appels à Claude eux-mêmes, en une « generation » : modèle, tokens et coût.
+
+        C'est ce que Langfuse lit pour remplir ses colonnes et tableaux de bord de coût.
+        Une seule pour toute la recherche : le SDK donne le total exact, pas le détail par tour.
+        """
+        if self.root is None:
+            return
+        usage = usage or {}
+        tokens = {"input": usage.get("input_tokens", 0), "output": usage.get("output_tokens", 0),
+                  "cache_read_input_tokens": usage.get("cache_read_input_tokens", 0),
+                  "cache_creation_input_tokens": usage.get("cache_creation_input_tokens", 0)}
+        generation = self._safe(
+            self.root.start_observation, name="claude", as_type="generation", model=model,
+            usage_details={k: v for k, v in tokens.items() if v},
+            cost_details={"total": cost_usd} if cost_usd is not None else None)
+        if generation is not None:
+            self._safe(generation.end)
+
     def finish(self, output: Any, metadata: dict, scores: dict[str, float]) -> None:
         """Résultat final de la recherche, et ses contrôles automatiques."""
         if self.root is None:
@@ -89,6 +108,18 @@ class Tracer:
 
 
 _client = None
+MCP_SCOPE = "mcp-python-sdk"
+
+
+def _keep_span(span) -> bool:
+    """Ce que Langfuse reçoit : son filtre habituel, SAUF les spans de la bibliothèque MCP.
+
+    Elle trace déjà chaque appel d'outil de son côté (« tools/call … ») : sans ce filtre,
+    chaque outil apparaissait deux fois, et les compteurs étaient doublés.
+    """
+    from langfuse.span_filter import is_default_export_span
+    scope = getattr(span, "instrumentation_scope", None)
+    return is_default_export_span(span) and getattr(scope, "name", None) != MCP_SCOPE
 
 
 def get_client():
@@ -97,7 +128,8 @@ def get_client():
     if _client is None and os.getenv("LANGFUSE_PUBLIC_KEY") and os.getenv("LANGFUSE_SECRET_KEY"):
         try:
             from langfuse import Langfuse
-            _client = Langfuse()  # lit LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST
+            # lit LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST
+            _client = Langfuse(should_export_span=_keep_span)
         except Exception:
             logger.warning("Langfuse non initialisé : suivi désactivé")
     return _client

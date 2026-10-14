@@ -25,6 +25,7 @@ from seen_films import add_seen_film
 from tracing import score_feedback
 from tmdb_client import TMDBClient
 from recommend import Answer, Film, recommend
+import watchlist
 
 ACCESS_LABELS = {"abonnement": "Inclus", "gratuit": "Gratuit", "location": "Location",
                  "achat": "Achat", "autre_abonnement": "Autre abonnement"}
@@ -99,6 +100,9 @@ st.markdown("""
   .st-key-mem-pas_envie { border-left-color: #DC2626 !important; }
   /* Affiches : hauteur fixe, recadrées, pour que les infos restent visibles */
   [data-testid="stImage"] img { height: 320px; object-fit: cover; border-radius: 14px; }
+  /* Page « À voir » : petites affiches */
+  [class*="st-key-wl-row-"] { border-radius: 16px; }
+  [class*="st-key-wl-row-"] [data-testid="stImage"] img { height: 110px; border-radius: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -389,5 +393,6 @@ def page_recommend() -> None:
 # Deux pages, avec un menu en haut du panneau de gauche.
 st.navigation([
     st.Page(page_recommend, title="Ce soir, je regarde…", icon="🎬", default=True),
+    st.Page(watchlist.render, title="À voir", icon="🕒", url_path="a-voir"),
     st.Page(my_films.render, title="Mes films", icon="🎞️", url_path="mes-films"),
 ]).run()
