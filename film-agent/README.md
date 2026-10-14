@@ -27,6 +27,17 @@ Pour l'arrêter : ferme la fenêtre du Terminal.
 
 Astuce : clic droit sur le fichier → **Créer un alias**, puis glisse l'alias sur le Bureau ou dans le Dock.
 
+## Page « À voir » : les films mis de côté
+
+Menu à gauche → **🕒 À voir** : les films que tu veux voir, avec leur affiche, leur durée et où les regarder
+(bouton ▶️ vers la plateforme).
+
+- **Ajouter** : bouton 🕒 *Plus tard* sous une recommandation, ou **➕ Mettre un film de côté** (recherche TMDB).
+- **✅ Je l'ai vu** : tu donnes ta note, l'année et un commentaire ; le film rejoint **Mes films** (Pinecone)
+  et quitte la liste. 3/5 ou plus = « vu et aimé », sinon « vu et pas aimé ».
+- **Retirer** : il sort de la liste, sans note.
+- L'agent connaît cette liste : il peut te reproposer un de ces films s'il colle à ta demande.
+
 ## Page « Mes films » : mes notes, gérées dans l'app
 
 Menu à gauche → **🎞️ Mes films** : tous les films de ta base Pinecone, avec recherche, filtre par note et tri.
