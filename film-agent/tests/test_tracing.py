@@ -127,3 +127,27 @@ def test_mcp_library_spans_are_not_sent_twice():
     genai = {"gen_ai.operation.name": "execute_tool"}
     assert not tracing._keep_span(span("mcp-python-sdk", genai))
     assert tracing._keep_span(span("langfuse-sdk", {}))
+
+
+def test_trace_output_has_everything_a_judge_needs(monkeypatch, tmp_path):
+    """Le juge de Langfuse ne lit que la trace : elle doit contenir le « pourquoi » et l'ambiance."""
+    import costs
+    monkeypatch.setattr(costs, "COSTS_FILE", tmp_path / "couts.json")
+    fake = FakeLangfuse()
+    monkeypatch.setattr(recommend, "get_client", lambda: fake)
+    from claude_agent_sdk import ResultMessage
+    film = recommend.Film("choix_sur", 1, "Comme Mandibules.", "Absurde et solaire",
+                          {"title": "Le Daim", "year": 2019, "runtime_min": 77},
+                          {"options": [{"platform": "Netflix", "access": "abonnement"}]})
+    monkeypatch.setattr(recommend, "verify_and_enrich", lambda raw, registry, tmdb: ([film], []))
+
+    async def fake_query(prompt, options):
+        yield ResultMessage(subtype="success", duration_ms=1, duration_api_ms=1, is_error=False, num_turns=3,
+                            session_id="s", total_cost_usd=0.05, structured_output={
+                                "kind": "recommendations", "message": "", "films": [{"tmdb_id": 1}]})
+    monkeypatch.setattr(recommend, "query", fake_query)
+    asyncio.run(recommend.recommend("Un film", Settings("k", "k", "k", "m", "i"), SessionRegistry()))
+    output = next(e[2]["output"] for e in fake.log if e[0] == "update" and e[1] == "recommandation")
+    assert output["films"] == [{"role": "🎯 Le choix sûr", "titre": "Le Daim", "annee": 2019, "duree": "1 h 17",
+                                "ou_voir": "Netflix (abonnement)", "pourquoi": "Comme Mandibules.",
+                                "ambiance": "Absurde et solaire"}]
