@@ -30,10 +30,11 @@ from agent_tools import SessionRegistry, allowed_tool_names, build_server, build
 from config import PROJECT_DIR, Settings, get_settings
 from costs import CostLog, DailyBudgetExceeded
 from memory import Memory
+from prompt_manager import load_system_prompt
 from ratings_store import RatingsStore
 from tmdb_client import TMDBClient
 
-SYSTEM_PROMPT = (PROJECT_DIR / "prompts" / "system_prompt.md").read_text(encoding="utf-8")
+# Les instructions de l'agent sont gérées dans Langfuse (fichier local en secours) : voir prompt_manager.py.
 
 # Limites : un agent a besoin de garde-fous sur ses propres boucles.
 # Elles viennent de .env (AGENT_MAX_TURNS, AGENT_MAX_BUDGET_USD, AGENT_DAILY_BUDGET_USD) : voir config.py.
@@ -55,15 +56,16 @@ SKILLS = ["selection-3-films"]  # dans film-agent/.claude/skills/
 
 
 def build_options(settings: Settings, registry: SessionRegistry,
-                  memory: Memory | None = None) -> ClaudeAgentOptions:
+                  memory: Memory | None = None, system_prompt: str | None = None) -> ClaudeAgentOptions:
     memory = memory or Memory()
+    system_prompt = system_prompt or load_system_prompt().text
     tools = build_tools(TMDBClient(settings.tmdb_api_key),
                         RatingsStore(settings.pinecone_api_key, settings.pinecone_index),
                         registry, memory)
     return ClaudeAgentOptions(
         model=settings.claude_model,
         # Mémoire « injectée » : relue à chaque nouvelle demande, ajoutée au prompt système.
-        system_prompt=(SYSTEM_PROMPT + BUDGET_INSTRUCTIONS.format(
+        system_prompt=(system_prompt + BUDGET_INSTRUCTIONS.format(
             max_turns=settings.max_turns, last_call=max(settings.max_turns - 3, 1))
             + "\n\n" + memory.as_prompt()),
         mcp_servers={"films": build_server(tools)},

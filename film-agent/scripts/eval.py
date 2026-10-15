@@ -36,6 +36,7 @@ import evaluation as ev  # noqa: E402
 from agent_tools import SessionRegistry  # noqa: E402
 from config import PROJECT_DIR, ConfigError, get_settings  # noqa: E402
 from ratings_store import RatingsStore  # noqa: E402
+from prompt_manager import load_system_prompt  # noqa: E402
 from recommend import recommend  # noqa: E402
 from tracing import Tracer, get_client  # noqa: E402
 
@@ -153,6 +154,7 @@ async def main_run(args) -> None:
         print("Aucune demande évaluée.")
         return
     data = ev.to_json(results, {"date": stamp, "modele": settings.claude_model, "juge": judge_model,
+                                "instructions": load_system_prompt().source,
                                 "cas": [r.id for r in results]})
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     base = RESULTS_DIR / f"{stamp}_{settings.claude_model}"
@@ -169,6 +171,7 @@ def main() -> None:
     parser.add_argument("--modele", help="modèle de l'agent (défaut : CLAUDE_MODEL de .env)")
     parser.add_argument("--juge", help="modèle du juge (défaut : EVAL_JUDGE_MODEL ou claude-sonnet-5-5)")
     parser.add_argument("--budget", type=float, help="plafond de dépense en $ (défaut : EVAL_BUDGET_USD ou 1.50)")
+    parser.add_argument("--prompt-label", help="version du prompt Langfuse à tester (ex. staging ; défaut : production)")
     parser.add_argument("--comparer", nargs=2, metavar=("AVANT.json", "APRES.json"),
                         help="comparer deux rapports, sans rien relancer (gratuit)")
     args = parser.parse_args()
@@ -176,6 +179,8 @@ def main() -> None:
         a, b = (json.loads(Path(p).read_text(encoding="utf-8")) for p in args.comparer)
         print(ev.compare(a, b))
         return
+    if args.prompt_label:  # lu par prompt_manager à chaque recherche
+        os.environ["LANGFUSE_PROMPT_LABEL"] = args.prompt_label
     try:
         asyncio.run(main_run(args))
     except (ConfigError, ValueError) as exc:
