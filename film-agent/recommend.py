@@ -20,6 +20,7 @@ from agent_tools import SessionRegistry
 from config import Settings
 from costs import CostLog, DailyBudgetExceeded
 from memory import Memory
+from prompt_manager import load_system_prompt
 from tracing import Tracer, get_client
 from tmdb_client import TMDBClient, TMDBError
 
@@ -184,9 +185,11 @@ async def recommend(prompt: str, settings: Settings, registry: SessionRegistry,
     except DailyBudgetExceeded as exc:
         return Answer("error", f"💶 {exc}", [], session_id)
 
+    instructions = load_system_prompt()  # depuis Langfuse (version « production »), sinon le fichier local
     tracer = Tracer(get_client())
-    with tracer.recherche(prompt, settings.claude_model, conversation_id, tags):
-        answer = await _run_agent(prompt, settings, registry, session_id, on_tool, memory, costs, tracer)
+    with tracer.recherche(prompt, settings.claude_model, conversation_id, tags, instructions):
+        answer = await _run_agent(prompt, settings, registry, session_id, on_tool, memory, costs, tracer,
+                                  instructions.text)
         tracer.finish(
             # Tout ce que je vois sur les cartes : un juge (Langfuse ou scripts/eval.py) peut tout noter.
             output={"type": answer.kind, "message": answer.message,
@@ -204,8 +207,9 @@ async def recommend(prompt: str, settings: Settings, registry: SessionRegistry,
     return answer
 
 
-async def _run_agent(prompt, settings, registry, session_id, on_tool, memory, costs, tracer) -> Answer:
-    options = build_options(settings, registry, memory)
+async def _run_agent(prompt, settings, registry, session_id, on_tool, memory, costs, tracer,
+                     instructions: str | None = None) -> Answer:
+    options = build_options(settings, registry, memory, instructions)
     options.system_prompt += UI_INSTRUCTIONS
     options.output_format = {"type": "json_schema", "schema": OUTPUT_SCHEMA}
     options.resume = session_id

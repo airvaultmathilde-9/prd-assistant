@@ -86,19 +86,29 @@ class Tracer:
 
     @contextmanager
     def trace(self, name: str, input: Any, *, as_type: str = "agent", model: str | None = None,
-              session_id: str | None = None, tags: list[str] | None = None) -> Iterator["Tracer"]:
-        """Ouvre une trace (ne fait rien si Langfuse est désactivé)."""
+              session_id: str | None = None, tags: list[str] | None = None,
+              instructions=None) -> Iterator["Tracer"]:
+        """Ouvre une trace (ne fait rien si Langfuse est désactivé).
+
+        instructions : le prompt système utilisé (prompt_manager.SystemPrompt). S'il vient de Langfuse,
+        la trace est reliée à sa version (onglet Prompts → métriques par version)."""
         if not self.enabled:
             yield self
             return
         stack = ExitStack()
         try:
             from langfuse import propagate_attributes
+            linked = getattr(instructions, "client", None)  # prompt Langfuse (None si fichier local)
+            version = f"prompt-v{linked.version}" if linked is not None else prompt_version()
+            extra = {"prompt": linked} if linked is not None else {}
             stack.enter_context(propagate_attributes(
-                user_id=USER_ID, session_id=session_id, tags=tags, version=prompt_version(),
-                trace_name=name, metadata={"modele": model} if model else None))
+                user_id=USER_ID, session_id=session_id, tags=tags, version=version,
+                trace_name=name, metadata={"modele": model} if model else None, **extra))
+            metadata = {"modele": model}
+            if instructions is not None:
+                metadata["instructions"] = instructions.source
             self.root = stack.enter_context(self.client.start_as_current_observation(
-                name=name, as_type=as_type, input=input, metadata={"modele": model}))
+                name=name, as_type=as_type, input=input, metadata=metadata))
             self.trace_id = self.client.get_current_trace_id()
         except Exception:  # Langfuse injoignable : on continue sans suivi
             logger.warning("Langfuse indisponible : recherche non suivie")
@@ -114,9 +124,9 @@ class Tracer:
             self._safe(self.client.flush)
 
     def recherche(self, prompt: str, model: str, session_id: str | None = None,
-                  tags: list[str] | None = None):
+                  tags: list[str] | None = None, instructions=None):
         return self.trace("recommandation", {"demande": prompt}, model=model,
-                          session_id=session_id, tags=tags or ["app"])
+                          session_id=session_id, tags=tags or ["app"], instructions=instructions)
 
     # ---------- Les tours de Claude ----------
 

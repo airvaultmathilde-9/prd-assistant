@@ -210,6 +210,7 @@ def to_json(results: list[CaseResult], meta: dict) -> dict:
 def markdown_report(data: dict) -> str:
     meta, s = data["meta"], data["resume"]
     lines = [f"# Évaluation du {meta['date']} : {meta['modele']}", "",
+             f"- Instructions de l'agent : {meta.get('instructions', '?')}",
              f"- Contrôles automatiques réussis : **{s['controles_reussis']}**",
              f"- Note moyenne du juge : **{s['note_juge_moyenne']}/5** ({meta['juge']})",
              f"- Coût total : {s['cout_total_usd']} $ · tours moyens : {s['tours_moyens']}", "",

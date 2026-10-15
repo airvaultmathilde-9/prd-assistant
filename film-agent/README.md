@@ -101,6 +101,24 @@ python scripts/eval.py --comparer data/evals/A.json data/evals/B.json   # compar
 - Pour ajouter un cas, ajoute une ligne dans `evals/cas.json` (contrôles possibles : `question`, `personne`,
   `duree_max`, `langue`, `annees`, `plateforme`, `min_films`).
 
+## Les instructions de l'agent, gérées dans Langfuse
+
+Le prompt système (`prompts/system_prompt.md` au départ) se gère dans **Langfuse → Prompts**, sous le nom
+`film-agent-instructions` (`prompt_manager.py`).
+
+1. **Une seule fois** : `python scripts/push_prompt.py` envoie le fichier local dans Langfuse (version 1, étiquette `production`).
+2. **Ensuite** : modifie le texte dans Langfuse. Chaque enregistrement crée une **nouvelle version** ; l'agent utilise
+   celle qui porte l'étiquette **`production`**. Pas besoin de relancer l'app (relu à chaque recherche, cache 60 s).
+3. **Tester avant de mettre en production** : enregistre la nouvelle version avec l'étiquette `staging`, puis
+   `python scripts/eval.py --prompt-label staging` et compare avec un passage en production (`--comparer`).
+   Si c'est mieux, déplace l'étiquette `production` sur cette version dans Langfuse.
+4. **Revenir en arrière** : remets l'étiquette `production` sur une ancienne version.
+
+- Chaque trace est reliée à la version utilisée (`version` = `prompt-v3`, et Langfuse → Prompts → métriques par version).
+- **Filet de sécurité** : sans Langfuse, s'il ne répond pas ou si le prompt n'existe pas encore, l'agent utilise le fichier local.
+- Restent dans le code : les consignes techniques (budget de tours, format de réponse) et la skill `selection-3-films`.
+- Attention : le fichier local n'est plus mis à jour automatiquement ; c'est Langfuse qui fait foi.
+
 ## Garde-fous de coût
 
 Seule l'API Anthropic est payante (TMDB et Pinecone sont gratuits). Une recherche coûte d'autant plus
