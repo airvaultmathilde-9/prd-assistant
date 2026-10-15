@@ -163,6 +163,11 @@ def verify_and_enrich(raw_films: list[dict], registry: SessionRegistry,
     return films, rejected
 
 
+def _where(film: Film) -> str:
+    options = film.watch.get("options") or []
+    return f"{options[0]['platform']} ({options[0]['access']})" if options else "pas disponible chez elle"
+
+
 async def recommend(prompt: str, settings: Settings, registry: SessionRegistry,
                     session_id: str | None = None,
                     on_tool: Callable[[str, dict], None] | None = None,
@@ -183,9 +188,11 @@ async def recommend(prompt: str, settings: Settings, registry: SessionRegistry,
     with tracer.recherche(prompt, settings.claude_model, conversation_id, tags):
         answer = await _run_agent(prompt, settings, registry, session_id, on_tool, memory, costs, tracer)
         tracer.finish(
+            # Tout ce que je vois sur les cartes : un juge (Langfuse ou scripts/eval.py) peut tout noter.
             output={"type": answer.kind, "message": answer.message,
-                    "films": [f"{f.role_label} : {f.details.get('title')} ({f.details.get('year')})"
-                              for f in answer.films]},
+                    "films": [{"role": f.role_label, "titre": f.details.get("title"), "annee": f.details.get("year"),
+                               "duree": f.runtime_label, "ou_voir": _where(f),
+                               "pourquoi": f.why, "ambiance": f.vibe} for f in answer.films]},
             metadata={"tours": answer.turns, "cout_usd": answer.cost_usd},
             # Contrôles automatiques, visibles et filtrables dans Langfuse.
             scores={"films_proposes": len(answer.films), "films_ecartes": len(answer.rejected),
